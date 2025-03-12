@@ -19,14 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Master_Beat_FullMethodName = "/Master/Beat"
+	Master_InitNode_FullMethodName      = "/Master/InitNode"
+	Master_Beat_FullMethodName          = "/Master/Beat"
+	Master_RequestUpload_FullMethodName = "/Master/RequestUpload"
 )
 
 // MasterClient is the client API for Master service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MasterClient interface {
+	InitNode(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	Beat(ctx context.Context, in *BeatRequest, opts ...grpc.CallOption) (*BeatResponse, error)
+	RequestUpload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (*UploadResponse, error)
 }
 
 type masterClient struct {
@@ -35,6 +39,16 @@ type masterClient struct {
 
 func NewMasterClient(cc grpc.ClientConnInterface) MasterClient {
 	return &masterClient{cc}
+}
+
+func (c *masterClient) InitNode(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitResponse)
+	err := c.cc.Invoke(ctx, Master_InitNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *masterClient) Beat(ctx context.Context, in *BeatRequest, opts ...grpc.CallOption) (*BeatResponse, error) {
@@ -47,11 +61,23 @@ func (c *masterClient) Beat(ctx context.Context, in *BeatRequest, opts ...grpc.C
 	return out, nil
 }
 
+func (c *masterClient) RequestUpload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (*UploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadResponse)
+	err := c.cc.Invoke(ctx, Master_RequestUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MasterServer is the server API for Master service.
 // All implementations must embed UnimplementedMasterServer
 // for forward compatibility.
 type MasterServer interface {
+	InitNode(context.Context, *InitRequest) (*InitResponse, error)
 	Beat(context.Context, *BeatRequest) (*BeatResponse, error)
+	RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error)
 	mustEmbedUnimplementedMasterServer()
 }
 
@@ -62,8 +88,14 @@ type MasterServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMasterServer struct{}
 
+func (UnimplementedMasterServer) InitNode(context.Context, *InitRequest) (*InitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitNode not implemented")
+}
 func (UnimplementedMasterServer) Beat(context.Context, *BeatRequest) (*BeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Beat not implemented")
+}
+func (UnimplementedMasterServer) RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestUpload not implemented")
 }
 func (UnimplementedMasterServer) mustEmbedUnimplementedMasterServer() {}
 func (UnimplementedMasterServer) testEmbeddedByValue()                {}
@@ -86,6 +118,24 @@ func RegisterMasterServer(s grpc.ServiceRegistrar, srv MasterServer) {
 	s.RegisterService(&Master_ServiceDesc, srv)
 }
 
+func _Master_InitNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterServer).InitNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Master_InitNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterServer).InitNode(ctx, req.(*InitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Master_Beat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BeatRequest)
 	if err := dec(in); err != nil {
@@ -104,6 +154,24 @@ func _Master_Beat_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Master_RequestUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterServer).RequestUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Master_RequestUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterServer).RequestUpload(ctx, req.(*UploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Master_ServiceDesc is the grpc.ServiceDesc for Master service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -112,8 +180,16 @@ var Master_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*MasterServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "InitNode",
+			Handler:    _Master_InitNode_Handler,
+		},
+		{
 			MethodName: "Beat",
 			Handler:    _Master_Beat_Handler,
+		},
+		{
+			MethodName: "RequestUpload",
+			Handler:    _Master_RequestUpload_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -8,6 +8,7 @@ import (
 	"time"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"os"
 )
 
 func sendHeartbeat(client master.MasterClient) {
@@ -20,8 +21,10 @@ func sendHeartbeat(client master.MasterClient) {
 	}
 }
 var name string
+var port string
+
 func initConn(client master.MasterClient) (error){
-	response, err := client.Beat(context.Background(), &master.BeatRequest{Name: "Start"})
+	response, err := client.InitNode(context.Background(), &master.InitRequest{Port: port})
 	if err != nil {
 		// terminate program
 		log.Fatalf("Error when calling Beat: %s", err)
@@ -31,17 +34,16 @@ func initConn(client master.MasterClient) (error){
 	fmt.Println("My name is assigned as " + name)
 	return nil
 }
-func printVals(){
-	for i := 0; i < 10; i++ {
-		time.Sleep(500 * time.Millisecond)
-		fmt.Println(i)
-	}
-}
 
 func main(){
+	if len(os.Args) < 2 {
+		log.Fatalf("Please provide the port number")
+		return
+	}
+	port = os.Args[1]
 	conn, err := grpc.NewClient("localhost:8080",grpc.WithTransportCredentials( insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Cannot start client : %s", err)
+		log.Fatalf("Cannot start data : %s", err)
 	}
 	defer conn.Close()
 	client_master := master.NewMasterClient(conn)

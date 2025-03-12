@@ -21,6 +21,94 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type InitRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Port          string                 `protobuf:"bytes,1,opt,name=port,proto3" json:"port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitRequest) Reset() {
+	*x = InitRequest{}
+	mi := &file_master_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitRequest) ProtoMessage() {}
+
+func (x *InitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_master_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitRequest.ProtoReflect.Descriptor instead.
+func (*InitRequest) Descriptor() ([]byte, []int) {
+	return file_master_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *InitRequest) GetPort() string {
+	if x != nil {
+		return x.Port
+	}
+	return ""
+}
+
+type InitResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitResponse) Reset() {
+	*x = InitResponse{}
+	mi := &file_master_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitResponse) ProtoMessage() {}
+
+func (x *InitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_master_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitResponse.ProtoReflect.Descriptor instead.
+func (*InitResponse) Descriptor() ([]byte, []int) {
+	return file_master_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *InitResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 type BeatRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name of node that beats
@@ -31,7 +119,7 @@ type BeatRequest struct {
 
 func (x *BeatRequest) Reset() {
 	*x = BeatRequest{}
-	mi := &file_master_proto_msgTypes[0]
+	mi := &file_master_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +131,7 @@ func (x *BeatRequest) String() string {
 func (*BeatRequest) ProtoMessage() {}
 
 func (x *BeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_master_proto_msgTypes[0]
+	mi := &file_master_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +144,7 @@ func (x *BeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeatRequest.ProtoReflect.Descriptor instead.
 func (*BeatRequest) Descriptor() ([]byte, []int) {
-	return file_master_proto_rawDescGZIP(), []int{0}
+	return file_master_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BeatRequest) GetName() string {
@@ -75,7 +163,7 @@ type BeatResponse struct {
 
 func (x *BeatResponse) Reset() {
 	*x = BeatResponse{}
-	mi := &file_master_proto_msgTypes[1]
+	mi := &file_master_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -87,7 +175,7 @@ func (x *BeatResponse) String() string {
 func (*BeatResponse) ProtoMessage() {}
 
 func (x *BeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_master_proto_msgTypes[1]
+	mi := &file_master_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -100,10 +188,90 @@ func (x *BeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeatResponse.ProtoReflect.Descriptor instead.
 func (*BeatResponse) Descriptor() ([]byte, []int) {
-	return file_master_proto_rawDescGZIP(), []int{1}
+	return file_master_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *BeatResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadRequest) Reset() {
+	*x = UploadRequest{}
+	mi := &file_master_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadRequest) ProtoMessage() {}
+
+func (x *UploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_master_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadRequest.ProtoReflect.Descriptor instead.
+func (*UploadRequest) Descriptor() ([]byte, []int) {
+	return file_master_proto_rawDescGZIP(), []int{4}
+}
+
+type UploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadResponse) Reset() {
+	*x = UploadResponse{}
+	mi := &file_master_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadResponse) ProtoMessage() {}
+
+func (x *UploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_master_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadResponse.ProtoReflect.Descriptor instead.
+func (*UploadResponse) Descriptor() ([]byte, []int) {
+	return file_master_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *UploadResponse) GetMessage() string {
 	if x != nil {
 		return x.Message
 	}
@@ -114,16 +282,31 @@ var File_master_proto protoreflect.FileDescriptor
 
 var file_master_proto_rawDesc = string([]byte{
 	0x0a, 0x0c, 0x6d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x21,
-	0x0a, 0x0b, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d,
-	0x65, 0x22, 0x28, 0x0a, 0x0c, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x0a, 0x0b, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a,
+	0x04, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x70, 0x6f, 0x72,
+	0x74, 0x22, 0x28, 0x0a, 0x0c, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
 	0x65, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x32, 0x2f, 0x0a, 0x06, 0x4d,
-	0x61, 0x73, 0x74, 0x65, 0x72, 0x12, 0x25, 0x0a, 0x04, 0x42, 0x65, 0x61, 0x74, 0x12, 0x0c, 0x2e,
-	0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x0d, 0x2e, 0x42, 0x65,
-	0x61, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x12, 0x5a, 0x10,
-	0x64, 0x65, 0x6d, 0x6f, 0x2d, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x6d, 0x61, 0x73, 0x74, 0x65, 0x72,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x21, 0x0a, 0x0b, 0x42,
+	0x65, 0x61, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x28,
+	0x0a, 0x0c, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18,
+	0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x0f, 0x0a, 0x0d, 0x55, 0x70, 0x6c, 0x6f,
+	0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x2a, 0x0a, 0x0e, 0x55, 0x70, 0x6c,
+	0x6f, 0x61, 0x64, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x6d,
+	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65,
+	0x73, 0x73, 0x61, 0x67, 0x65, 0x32, 0x8e, 0x01, 0x0a, 0x06, 0x4d, 0x61, 0x73, 0x74, 0x65, 0x72,
+	0x12, 0x29, 0x0a, 0x08, 0x49, 0x6e, 0x69, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x0c, 0x2e, 0x49,
+	0x6e, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x0d, 0x2e, 0x49, 0x6e, 0x69,
+	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x25, 0x0a, 0x04, 0x42,
+	0x65, 0x61, 0x74, 0x12, 0x0c, 0x2e, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x0d, 0x2e, 0x42, 0x65, 0x61, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x22, 0x00, 0x12, 0x32, 0x0a, 0x0d, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x55, 0x70, 0x6c,
+	0x6f, 0x61, 0x64, 0x12, 0x0e, 0x2e, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x0f, 0x2e, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x12, 0x5a, 0x10, 0x64, 0x65, 0x6d, 0x6f, 0x2d, 0x67,
+	0x72, 0x70, 0x63, 0x2f, 0x6d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 })
 
 var (
@@ -138,16 +321,24 @@ func file_master_proto_rawDescGZIP() []byte {
 	return file_master_proto_rawDescData
 }
 
-var file_master_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_master_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_master_proto_goTypes = []any{
-	(*BeatRequest)(nil),  // 0: BeatRequest
-	(*BeatResponse)(nil), // 1: BeatResponse
+	(*InitRequest)(nil),    // 0: InitRequest
+	(*InitResponse)(nil),   // 1: InitResponse
+	(*BeatRequest)(nil),    // 2: BeatRequest
+	(*BeatResponse)(nil),   // 3: BeatResponse
+	(*UploadRequest)(nil),  // 4: UploadRequest
+	(*UploadResponse)(nil), // 5: UploadResponse
 }
 var file_master_proto_depIdxs = []int32{
-	0, // 0: Master.Beat:input_type -> BeatRequest
-	1, // 1: Master.Beat:output_type -> BeatResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	0, // 0: Master.InitNode:input_type -> InitRequest
+	2, // 1: Master.Beat:input_type -> BeatRequest
+	4, // 2: Master.RequestUpload:input_type -> UploadRequest
+	1, // 3: Master.InitNode:output_type -> InitResponse
+	3, // 4: Master.Beat:output_type -> BeatResponse
+	5, // 5: Master.RequestUpload:output_type -> UploadResponse
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -164,7 +355,7 @@ func file_master_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_master_proto_rawDesc), len(file_master_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
