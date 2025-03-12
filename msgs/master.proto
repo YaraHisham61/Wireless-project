@@ -1,0 +1,12 @@
+syntax ="proto3";
+option go_package="demo-grpc/master";
+message BeatRequest {
+  // The name of node that beats
+  string name = 1;
+}
+message BeatResponse {
+  string message = 1;
+}
+service Master {
+  rpc Beat(BeatRequest) returns (BeatResponse) {}
+}
