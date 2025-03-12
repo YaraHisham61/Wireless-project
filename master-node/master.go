@@ -11,6 +11,12 @@ import (
 	"google.golang.org/grpc"
 )
 var node_life_tracker = make(map[string]time.Time)
+func check_node_life(node_name string) {
+	if time.Since(node_life_tracker[node_name]) > time.Second {
+		log.Printf("Node %s is dead", node_name)
+		delete(node_life_tracker, node_name)
+	}
+}
 type MasterServer struct {
 	master.UnimplementedMasterServer
 }
