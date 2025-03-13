@@ -8,7 +8,7 @@ message InitResponse {
 }
 message BeatRequest {
   // The name of node that beats
-  string name = 1;
+  string nodeName = 1;
 }
 message BeatResponse {
   string message = 1;

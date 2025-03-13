@@ -13,11 +13,12 @@ import (
 
 func sendHeartbeat(client master.MasterClient) {
 	for {
-		_, err := client.Beat(context.Background(), &master.BeatRequest{Name: name})
+		fmt.Println("Sending Heartbeat "+name)
+		_, err := client.Beat(context.Background(), &master.BeatRequest{NodeName: name})
 		if err != nil {
 			log.Fatalf("Error when calling Beat: %s", err)
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(950 * time.Millisecond)
 	}
 }
 var name string
@@ -27,10 +28,10 @@ func initConn(client master.MasterClient) (error){
 	response, err := client.InitNode(context.Background(), &master.InitRequest{Port: port})
 	if err != nil {
 		// terminate program
-		log.Fatalf("Error when calling Beat: %s", err)
+		log.Fatalf("Error when calling InitNode: %s", err)
 		return err
 	}
-	name := response.GetMessage()
+	name = response.GetMessage()
 	fmt.Println("My name is assigned as " + name)
 	return nil
 }
