@@ -18,8 +18,16 @@ message UploadRequest {
 message UploadResponse {
   string message = 1;
 }
+message DataNodeUploadFinishedRequest {
+  string fileName = 1;
+  string filePath = 2;
+  string nodeName = 3;
+}
+message DataNodeUploadFinishedStatus {
+}
 service Master {
   rpc InitNode(InitRequest) returns (InitResponse) {}
   rpc Beat(BeatRequest) returns (BeatResponse) {}
   rpc RequestUpload(UploadRequest) returns (UploadResponse) {}
+  rpc UploadFinished (DataNodeUploadFinishedRequest) returns (DataNodeUploadFinishedStatus) {}
 }

@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Master_InitNode_FullMethodName      = "/Master/InitNode"
-	Master_Beat_FullMethodName          = "/Master/Beat"
-	Master_RequestUpload_FullMethodName = "/Master/RequestUpload"
+	Master_InitNode_FullMethodName       = "/Master/InitNode"
+	Master_Beat_FullMethodName           = "/Master/Beat"
+	Master_RequestUpload_FullMethodName  = "/Master/RequestUpload"
+	Master_UploadFinished_FullMethodName = "/Master/UploadFinished"
 )
 
 // MasterClient is the client API for Master service.
@@ -31,6 +32,7 @@ type MasterClient interface {
 	InitNode(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	Beat(ctx context.Context, in *BeatRequest, opts ...grpc.CallOption) (*BeatResponse, error)
 	RequestUpload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (*UploadResponse, error)
+	UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*DataNodeUploadFinishedStatus, error)
 }
 
 type masterClient struct {
@@ -71,6 +73,16 @@ func (c *masterClient) RequestUpload(ctx context.Context, in *UploadRequest, opt
 	return out, nil
 }
 
+func (c *masterClient) UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*DataNodeUploadFinishedStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DataNodeUploadFinishedStatus)
+	err := c.cc.Invoke(ctx, Master_UploadFinished_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MasterServer is the server API for Master service.
 // All implementations must embed UnimplementedMasterServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type MasterServer interface {
 	InitNode(context.Context, *InitRequest) (*InitResponse, error)
 	Beat(context.Context, *BeatRequest) (*BeatResponse, error)
 	RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error)
+	UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*DataNodeUploadFinishedStatus, error)
 	mustEmbedUnimplementedMasterServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedMasterServer) Beat(context.Context, *BeatRequest) (*BeatRespo
 }
 func (UnimplementedMasterServer) RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestUpload not implemented")
+}
+func (UnimplementedMasterServer) UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*DataNodeUploadFinishedStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UploadFinished not implemented")
 }
 func (UnimplementedMasterServer) mustEmbedUnimplementedMasterServer() {}
 func (UnimplementedMasterServer) testEmbeddedByValue()                {}
@@ -172,6 +188,24 @@ func _Master_RequestUpload_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Master_UploadFinished_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DataNodeUploadFinishedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterServer).UploadFinished(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Master_UploadFinished_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterServer).UploadFinished(ctx, req.(*DataNodeUploadFinishedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Master_ServiceDesc is the grpc.ServiceDesc for Master service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var Master_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequestUpload",
 			Handler:    _Master_RequestUpload_Handler,
+		},
+		{
+			MethodName: "UploadFinished",
+			Handler:    _Master_UploadFinished_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

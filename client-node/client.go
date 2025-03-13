@@ -1,12 +1,15 @@
 package main
 
 import (
+	"Wireless-project/msgs/data"
 	"Wireless-project/msgs/master"
 	"context"
 	"fmt"
+	"log"
+	"os"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"log"
 )
 
 func getDataNodePort(request master.MasterClient) string {
@@ -15,9 +18,9 @@ func getDataNodePort(request master.MasterClient) string {
 		log.Fatalf("Error when calling RequestUpload: %s", err)
 	}
 	data_node_port := res.Message
-	fmt.Println("Connecting to data node with port " + data_node_port)
 	return data_node_port
 }
+
 func main() {
 	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -35,7 +38,40 @@ func main() {
 		if answer == 0 {
 			return
 		} else if answer == 1 {
-			getDataNodePort(client_master)
+			port := getDataNodePort(client_master)
+			fmt.Println("Connecting to data node with port " + port)
+			data_conn, err_data := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Fatalf("Cannot start client : %s", err_data)
+			}
+			defer data_conn.Close()
+			data_client := data.NewDataClient(data_conn)
+			fmt.Println("Connected to data node")
+			fmt.Println("Enter the path of the video file you want to upload")
+			var path string
+			fmt.Scan(&path)
+			fmt.Println("Enter the name of the video file you want to upload")
+			var name string
+			fmt.Scan(&name)
+			f, err := os.Open("../videos/" + name + ".mp4")
+			if err != nil {
+				log.Fatalf("Error when opening file: %s", err)
+			}
+			info, err := f.Stat()
+			if err != nil {
+				log.Fatalf("Error when getting file info: %s", err)
+			}
+			//* Connection establishment
+			_, err = data_client.EstablishUploadConnection(context.Background(),
+				&data.VideoUploadData{FilePath: "videos/",
+					FileName: name + ".mp4",
+					FileSize: info.Size(),
+				})
+			if err != nil {
+				log.Fatalf("Error when calling EstablishUploadConnection: %s", err)
+			}
+			//* File upload
+			data_client.UploadVideo(context.Background())
 		} else if answer == 2 {
 		} else {
 			fmt.Println("Invalid input")

@@ -1,5 +1,18 @@
 syntax ="proto3";
 option go_package="demo-grpc/data";
-service Data{
-    
+package video;
+message VideoChunk {
+    bytes data = 1;
+}
+message UploadStatus {
+    string message = 1;
+}
+message VideoUploadData {
+    string fileName = 1;
+    string filePath = 2;
+    int64 fileSize = 3;
+}
+service Data {
+    rpc UploadVideo(stream VideoChunk) returns (UploadStatus);
+    rpc EstablishUploadConnection(VideoUploadData) returns (UploadStatus);
 }
