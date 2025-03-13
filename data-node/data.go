@@ -13,7 +13,6 @@ import (
 
 func sendHeartbeat(client master.MasterClient) {
 	for {
-		fmt.Println("Sending Heartbeat "+name)
 		_, err := client.Beat(context.Background(), &master.BeatRequest{NodeName: name})
 		if err != nil {
 			log.Fatalf("Error when calling Beat: %s", err)
