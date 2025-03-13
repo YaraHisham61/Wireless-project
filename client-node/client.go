@@ -5,8 +5,10 @@ import (
 	"Wireless-project/msgs/master"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,7 +22,27 @@ func getDataNodePort(request master.MasterClient) string {
 	data_node_port := res.Message
 	return data_node_port
 }
-
+func uploadVideo(data_client data.DataClient,f *os.File , fileSize int64) {
+	stream, err := data_client.UploadVideo(context.Background())
+	if err != nil {
+		log.Fatalf("Error when calling UploadVideo: %s", err)
+	}
+	buf := make([]byte, fileSize)
+	for {
+		n, err := f.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Failed to read video file: %v", err)
+		}
+		err = stream.Send(&data.VideoChunk{Data: buf[:n]})
+		if err != nil {
+			log.Fatalf("Failed to send video chunk: %v", err)
+		}
+		time.Sleep(time.Millisecond * 100) // Optional throttling
+	}
+}
 func main() {
 	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -63,15 +85,18 @@ func main() {
 			}
 			//* Connection establishment
 			_, err = data_client.EstablishUploadConnection(context.Background(),
-				&data.VideoUploadData{FilePath: "videos/",
+				&data.VideoUploadData{FilePath: path,
 					FileName: name + ".mp4",
 					FileSize: info.Size(),
 				})
 			if err != nil {
 				log.Fatalf("Error when calling EstablishUploadConnection: %s", err)
 			}
+			fmt.Println("Connection established")
 			//* File upload
-			data_client.UploadVideo(context.Background())
+			uploadVideo(data_client,f, info.Size())
+			fmt.Println("File uploaded successfully")
+			f.Close()
 		} else if answer == 2 {
 		} else {
 			fmt.Println("Invalid input")

@@ -5,6 +5,7 @@ import (
 	"Wireless-project/msgs/master"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -46,7 +47,7 @@ func initConn(client master.MasterClient) error {
 	fmt.Println("My name is assigned as " + name)
 	return nil
 }
-func (s DataServer) EstablishUploadConnection(ctx context.Context, in *data.VideoUploadData) (*data.UploadStatus, error) {
+func (s *DataServer) EstablishUploadConnection(ctx context.Context, in *data.VideoUploadData) (*data.UploadStatus, error) {
 	path := filepath.Join("./uploads/"+in.GetFilePath(), in.GetFileName())
 	file, err := os.Create(path)
 	if err != nil {
@@ -60,22 +61,21 @@ func (s DataServer) EstablishUploadConnection(ctx context.Context, in *data.Vide
 	s.fileSize = in.GetFileSize()
 	return &data.UploadStatus{Message: "File initialized successfully in location " + path + " and with size " + strconv.Itoa(int(s.fileSize))}, nil
 }
-func (s DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChunk, data.UploadStatus]) error {
+func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChunk, data.UploadStatus]) error {
 	defer s.currentFile.Close()
-	return nil
-	// for {
-	// 	chunk, err := stream.Recv()
-	// 	if err == io.EOF {
-	// 		return stream.SendAndClose(&data.UploadStatus{})
-	// 	}
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	_, writeErr := s.currentFile.Write(chunk.Data)
-	// 	if writeErr != nil {
-	// 		return writeErr
-	// 	}
-	// }
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&data.UploadStatus{})
+		}
+		if err != nil {
+			return err
+		}
+		_, writeErr := s.currentFile.Write(chunk.Data)
+		if writeErr != nil {
+			return writeErr
+		}
+	}
 }
 func main() {
 	if len(os.Args) < 2 {
@@ -95,7 +95,7 @@ func main() {
 	}
 	server := grpc.NewServer()
 	data_server := DataServer{}
-	data.RegisterDataServer(server, data_server)
+	data.RegisterDataServer(server, &data_server)
 	lis, err := net.Listen("tcp", "localhost:"+port)
 	if err != nil {
 		log.Fatalf("Cannot start server : %s", err)
