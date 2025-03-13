@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 	"google.golang.org/grpc"
 )
@@ -19,7 +18,7 @@ type Node struct {
 
 // map of string as key and pair as value that contain string and time.Time
 var node_life_tracker = make(map[string]Node)
-var mw = sync.Mutex{}
+
 // Check if the node is still alive and this by checking if it exceeds 1 second as threshold
 // If it exceeds threshold, then the node is considered dead
 func check_node_life(node_name string) bool {
@@ -42,8 +41,7 @@ func (s MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*ma
 	}, nil
 }
 func (s MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*master.BeatResponse, error) {
-	mw.Lock()
-	defer mw.Unlock()
+
 	node_name := in.GetNodeName()
 	log.Printf("Received Heartbeat from %s", node_name)
 	node_life_tracker[node_name] = Node{
@@ -55,8 +53,7 @@ func (s MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*master
 	}, nil
 }
 func (s MasterServer) RequestUpload(ctx context.Context, in *master.UploadRequest) (*master.UploadResponse, error) {
-	mw.Lock()
-	defer mw.Unlock()
+
 	for {
 		i := rand.Intn(len(node_life_tracker))
 		node_name := "Node" + strconv.Itoa(i)
