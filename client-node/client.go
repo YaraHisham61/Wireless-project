@@ -14,13 +14,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func getDataNodePort(request master.MasterClient) string {
+func getDataNodePort(request master.MasterClient) (string,string) {
 	res, err := request.RequestUpload(context.Background(), &master.UploadRequest{})
 	if err != nil {
 		log.Fatalf("Error when calling RequestUpload: %s", err)
 	}
-	data_node_port := res.Message
-	return data_node_port
+	data_node_port := res.Port
+	data_node_name := res.NodeName
+	return data_node_port,data_node_name
 }
 func uploadVideo(data_client data.DataClient,f *os.File , fileSize int64) {
 	stream, err := data_client.UploadVideo(context.Background())
@@ -43,7 +44,18 @@ func uploadVideo(data_client data.DataClient,f *os.File , fileSize int64) {
 		time.Sleep(time.Millisecond * 100) // Optional throttling
 	}
 }
-func main() {
+func checkUploadStatus(client_master master.MasterClient, nodeName string, fileName string,filePath string) string {
+	res,err := client_master.ClientUploadCheck(context.Background(), &master.ClientUploadCheckRequest{
+		NodeName: nodeName,
+		FileName: fileName,
+		FilePath: filePath,
+	})
+	if err != nil {
+		log.Fatalf("Error when calling ClientUploadCheck: %s", err)
+	}
+	return res.Message
+}
+	func main() {
 	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Cannot start client : %s", err)
@@ -60,7 +72,7 @@ func main() {
 		if answer == 0 {
 			return
 		} else if answer == 1 {
-			port := getDataNodePort(client_master)
+			port,nodeName := getDataNodePort(client_master)
 			fmt.Println("Connecting to data node with port " + port)
 			data_conn, err_data := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -96,6 +108,8 @@ func main() {
 			//* File upload
 			uploadVideo(data_client,f, info.Size())
 			fmt.Println("File uploaded successfully")
+			msg:=checkUploadStatus(client_master,nodeName,name,path)
+			fmt.Println("Master server says: "+msg)
 			f.Close()
 		} else if answer == 2 {
 		} else {

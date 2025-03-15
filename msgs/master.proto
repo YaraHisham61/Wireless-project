@@ -14,9 +14,12 @@ message BeatResponse {
   string message = 1;
 }
 message UploadRequest {
+  string filePath = 1;
+  string fileName = 2;
 }
 message UploadResponse {
-  string message = 1;
+  string port = 1;
+  string nodeName = 2;
 }
 message DataNodeUploadFinishedRequest {
   string fileName = 1;
@@ -25,9 +28,18 @@ message DataNodeUploadFinishedRequest {
 }
 message DataNodeUploadFinishedStatus {
 }
+message ClientUploadCheckRequest {
+  string fileName = 1;
+  string filePath = 2;
+  string nodeName = 3;
+}
+message ClientUploadCheckResponse {
+  string message = 1;
+}
 service Master {
   rpc InitNode(InitRequest) returns (InitResponse) {}
   rpc Beat(BeatRequest) returns (BeatResponse) {}
   rpc RequestUpload(UploadRequest) returns (UploadResponse) {}
   rpc UploadFinished (DataNodeUploadFinishedRequest) returns (DataNodeUploadFinishedStatus) {}
+  rpc ClientUploadCheck(ClientUploadCheckRequest) returns (ClientUploadCheckResponse) {}
 }
