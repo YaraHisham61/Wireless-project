@@ -29,15 +29,18 @@ func sendHeartbeat(client master.MasterClient) {
 
 var name string
 var port string
+var client_master master.MasterClient
 
 type DataServer struct {
 	data.UnimplementedDataServer
 	currentFile *os.File
 	fileSize    int64
+	fileName   string
+	filePath   string
 }
 
-func initConn(client master.MasterClient) error {
-	response, err := client.InitNode(context.Background(), &master.InitRequest{Port: port})
+func initConn() error {
+	response, err := client_master.InitNode(context.Background(), &master.InitRequest{Port: port})
 	if err != nil {
 		// terminate program
 		log.Fatalf("Error when calling InitNode: %s", err)
@@ -59,6 +62,8 @@ func (s *DataServer) EstablishUploadConnection(ctx context.Context, in *data.Vid
 	}
 	s.currentFile = file
 	s.fileSize = in.GetFileSize()
+	s.fileName = in.GetFileName()
+	s.filePath = in.GetFilePath()
 	return &data.UploadStatus{Message: "File initialized successfully in location " + path + " and with size " + strconv.Itoa(int(s.fileSize))}, nil
 }
 func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChunk, data.UploadStatus]) error {
@@ -66,6 +71,12 @@ func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChu
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
+			client_master.UploadFinished(context.Background(), &master.DataNodeUploadFinishedRequest{
+				NodeName: name,
+				FilePath: s.filePath,
+				FileName: s.fileName,
+			})
+			
 			return stream.SendAndClose(&data.UploadStatus{})
 		}
 		if err != nil {
@@ -76,6 +87,7 @@ func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChu
 			return writeErr
 		}
 	}
+
 }
 func main() {
 	if len(os.Args) < 2 {
@@ -88,8 +100,8 @@ func main() {
 		log.Fatalf("Cannot start data : %s", err)
 	}
 	defer conn.Close()
-	client_master := master.NewMasterClient(conn)
-	initConn := initConn(client_master)
+	client_master = master.NewMasterClient(conn)
+	initConn := initConn()
 	if initConn != nil {
 		return
 	}

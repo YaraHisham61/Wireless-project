@@ -1,0 +1,13 @@
+syntax ="proto3";
+option go_package="demo-grpc/user";
+
+message Nothing{
+
+}
+message UploadFinishedNotification{
+    string fileName = 1;
+    string filePath = 2;
+}
+service User{
+    rpc NotifyUploadFinished(UploadFinishedNotification) returns (Nothing) {}
+}

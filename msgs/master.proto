@@ -16,6 +16,7 @@ message BeatResponse {
 message UploadRequest {
   string filePath = 1;
   string fileName = 2;
+  string clientPort = 3;
 }
 message UploadResponse {
   string port = 1;

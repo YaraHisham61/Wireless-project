@@ -3,27 +3,48 @@ package main
 import (
 	"Wireless-project/msgs/data"
 	"Wireless-project/msgs/master"
+	"Wireless-project/msgs/user"
 	"context"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func getDataNodePort(request master.MasterClient) (string,string) {
-	res, err := request.RequestUpload(context.Background(), &master.UploadRequest{})
+var port string
+
+// The map will contain the files that are currently uploading to prevent from downloading it
+var currently_uploading = make(map[string]bool)
+
+type UserServer struct {
+	user.UnimplementedUserServer
+}
+
+func (s *UserServer) NotifyUploadFinished(ctx context.Context, in *user.UploadFinishedNotification) (*user.Nothing, error) {
+	log.Println("Upload for " + in.GetFilePath() + in.GetFileName() + " finished successfully")
+	delete(currently_uploading, in.GetFilePath()+in.GetFileName())
+	return &user.Nothing{}, nil
+}
+func getDataNodePort(request master.MasterClient, fileName string, filePath string) (string, string) {
+	res, err := request.RequestUpload(context.Background(), &master.UploadRequest{
+		FileName:   fileName,
+		FilePath:   filePath,
+		ClientPort: port,
+	})
 	if err != nil {
 		log.Fatalf("Error when calling RequestUpload: %s", err)
 	}
 	data_node_port := res.Port
 	data_node_name := res.NodeName
-	return data_node_port,data_node_name
+	return data_node_port, data_node_name
 }
-func uploadVideo(data_client data.DataClient,f *os.File , fileSize int64) {
+func uploadVideo(data_client data.DataClient, f *os.File, fileSize int64) {
 	stream, err := data_client.UploadVideo(context.Background())
 	if err != nil {
 		log.Fatalf("Error when calling UploadVideo: %s", err)
@@ -32,6 +53,10 @@ func uploadVideo(data_client data.DataClient,f *os.File , fileSize int64) {
 	for {
 		n, err := f.Read(buf)
 		if err == io.EOF {
+			err = stream.CloseSend()
+			if err != nil {
+				log.Fatalf("Failed to close stream: %v", err)
+			}
 			break
 		}
 		if err != nil {
@@ -44,24 +69,26 @@ func uploadVideo(data_client data.DataClient,f *os.File , fileSize int64) {
 		time.Sleep(time.Millisecond * 100) // Optional throttling
 	}
 }
-func checkUploadStatus(client_master master.MasterClient, nodeName string, fileName string,filePath string) string {
-	res,err := client_master.ClientUploadCheck(context.Background(), &master.ClientUploadCheckRequest{
-		NodeName: nodeName,
-		FileName: fileName,
-		FilePath: filePath,
-	})
-	if err != nil {
-		log.Fatalf("Error when calling ClientUploadCheck: %s", err)
-	}
-	return res.Message
-}
-	func main() {
+
+func main() {
+
 	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Cannot start client : %s", err)
 	}
-	defer conn.Close()
+	server := grpc.NewServer()
+	user.RegisterUserServer(server, &UserServer{})
 	client_master := master.NewMasterClient(conn)
+
+	defer server.Stop()
+	defer conn.Close()
+	lis, err := net.Listen("tcp", ":0")
+	if err != nil {
+		log.Fatalf("Cannot start server : %s", err)
+	}
+	port = strconv.Itoa(lis.Addr().(*net.TCPAddr).Port)
+	fmt.Println("Client node started on port " + port)
+	go server.Serve(lis)
 	answer := -1
 	for answer != 0 {
 		fmt.Println("Hello there! What would you like to do?")
@@ -72,7 +99,20 @@ func checkUploadStatus(client_master master.MasterClient, nodeName string, fileN
 		if answer == 0 {
 			return
 		} else if answer == 1 {
-			port,nodeName := getDataNodePort(client_master)
+
+			fmt.Println("Enter the path of the video file you want to upload")
+			var path string
+			fmt.Scan(&path)
+			fmt.Println("Enter the name of the video file you want to upload")
+			var name string
+			fmt.Scan(&name)
+			if path[len(path)-1:] != "/" {
+				path += "/"
+			}
+			if name[len(name)-4:] != ".mp4" {
+				name += ".mp4"
+			}
+			port, nodeName := getDataNodePort(client_master, name, path)
 			fmt.Println("Connecting to data node with port " + port)
 			data_conn, err_data := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -80,14 +120,7 @@ func checkUploadStatus(client_master master.MasterClient, nodeName string, fileN
 			}
 			defer data_conn.Close()
 			data_client := data.NewDataClient(data_conn)
-			fmt.Println("Connected to data node")
-			fmt.Println("Enter the path of the video file you want to upload")
-			var path string
-			fmt.Scan(&path)
-			fmt.Println("Enter the name of the video file you want to upload")
-			var name string
-			fmt.Scan(&name)
-			f, err := os.Open("../videos/" + name + ".mp4")
+			f, err := os.Open("../" + path + name)
 			if err != nil {
 				log.Fatalf("Error when opening file: %s", err)
 			}
@@ -98,18 +131,15 @@ func checkUploadStatus(client_master master.MasterClient, nodeName string, fileN
 			//* Connection establishment
 			_, err = data_client.EstablishUploadConnection(context.Background(),
 				&data.VideoUploadData{FilePath: path,
-					FileName: name + ".mp4",
+					FileName: name,
 					FileSize: info.Size(),
 				})
 			if err != nil {
 				log.Fatalf("Error when calling EstablishUploadConnection: %s", err)
 			}
-			fmt.Println("Connection established")
+			currently_uploading[nodeName+"/"+path+name+".mp4"] = true
 			//* File upload
-			uploadVideo(data_client,f, info.Size())
-			fmt.Println("File uploaded successfully")
-			msg:=checkUploadStatus(client_master,nodeName,name,path)
-			fmt.Println("Master server says: "+msg)
+			uploadVideo(data_client, f, info.Size())
 			f.Close()
 		} else if answer == 2 {
 		} else {

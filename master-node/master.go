@@ -2,13 +2,16 @@ package main
 
 import (
 	"Wireless-project/msgs/master"
+	"Wireless-project/msgs/user"
 	"context"
-	"google.golang.org/grpc"
 	"log"
 	"math/rand"
 	"net"
 	"strconv"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Node struct {
@@ -23,11 +26,14 @@ type File struct {
 
 // map of string as key and pair as value that contain string and time.Time
 var node_life_tracker = make(map[string]Node)
+
 // Map of file name and all file info for all nodes that is uploaded to it
 var data_nodes_tracker = make(map[string][]File)
-// The list will contain name of node + the filepath of the file that is currently uploading
-// Like Node1/videos/video1.mp4
-var currently_uploading = make(map[string]bool)
+var users = make(map[string]user.UserClient)
+
+// The map maintains the port of a client as a key and the list of files that the client is currently uploading
+// The map will contain node_name + file path + name = client_port
+var files_tracker = make(map[string]string)
 
 // Check if the node is still alive and this by checking if it exceeds 1 second as threshold
 // If it exceeds threshold, then the node is considered dead
@@ -62,40 +68,50 @@ func (s MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*master
 	}, nil
 }
 func (s MasterServer) RequestUpload(ctx context.Context, in *master.UploadRequest) (*master.UploadResponse, error) {
+	client_port := in.GetClientPort()
+	if users[client_port] == nil {
+		conn, err := grpc.NewClient("localhost:"+client_port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatalf("Error when calling RequestUpload: %s", err)
+		}
+		users[client_port] = user.NewUserClient(conn)
+	}
 	for {
 		i := rand.Intn(len(node_life_tracker))
 		node_name := "Node" + strconv.Itoa(i)
 		if check_node_life(node_name) {
-			currently_uploading[node_name+"/"+in.GetFilePath()+in.GetFileName()] = true
+			files_tracker[node_name+"/"+in.FilePath+in.FileName] = client_port
 			return &master.UploadResponse{
-				Port: node_life_tracker[node_name].port,
+				Port:     node_life_tracker[node_name].port,
 				NodeName: node_name,
 			}, nil
 		}
 	}
 }
 func (s MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUploadFinishedRequest) (*master.DataNodeUploadFinishedStatus, error) {
-	log.Printf("Upload finished by node %s", in.GetNodeName())
-	if data_nodes_tracker[in.GetNodeName()] == nil {
-		data_nodes_tracker[in.GetNodeName()] = []File{}
+	node_name := in.GetNodeName()
+	file_path := in.GetFilePath()
+	file_name := in.GetFileName()
+	if data_nodes_tracker[in.NodeName] == nil {
+		data_nodes_tracker[in.NodeName] = []File{}
 	}
-	data_nodes_tracker[in.GetNodeName()] = append(data_nodes_tracker[in.GetNodeName()], File{
-		fileName: in.GetFileName(),
-		filePath: in.GetFilePath(),
-		nodeName: in.GetNodeName(),
+	data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], File{
+		fileName: file_name,
+		filePath: file_path,
+		nodeName: node_name,
 	})
-	delete(currently_uploading, in.GetNodeName()+"/"+in.GetFilePath()+in.GetFileName())
+	user_port := files_tracker[in.NodeName+"/"+file_path+file_name]
+	delete(files_tracker, in.NodeName+"/"+file_path+file_name)
+	_,err:= users[user_port].NotifyUploadFinished(context.Background(), &user.UploadFinishedNotification{
+		FilePath: file_path,
+		FileName: file_name,
+	})
+	if err != nil {
+		log.Fatalf("Error when calling NotifyUploadFinished: %s", err)
+	}
 	return &master.DataNodeUploadFinishedStatus{}, nil
 }
-func (s MasterServer) ClientUploadCheck(ctx context.Context, in *master.ClientUploadCheckRequest) (*master.ClientUploadCheckResponse, error){
-	_,ok := currently_uploading[in.GetNodeName()+"/"+in.GetFilePath()+in.GetFileName()]
-	for ok {
-		_,ok = currently_uploading[in.GetNodeName()+"/"+in.GetFilePath()+in.GetFileName()]
-	}
-	return &master.ClientUploadCheckResponse{
-		Message: "Upload finished",
-	}, nil
-}
+
 func main() {
 	lis, err := net.Listen("tcp", "localhost:8080")
 	if err != nil {
