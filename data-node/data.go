@@ -35,8 +35,8 @@ type DataServer struct {
 	data.UnimplementedDataServer
 	currentFile *os.File
 	fileSize    int64
-	fileName   string
-	filePath   string
+	fileName    string
+	filePath    string
 }
 
 func initConn() error {
@@ -51,10 +51,10 @@ func initConn() error {
 	return nil
 }
 func (s *DataServer) EstablishUploadConnection(ctx context.Context, in *data.VideoUploadData) (*data.UploadStatus, error) {
-	path := filepath.Join("./uploads/"+in.GetFilePath(), in.GetFileName())
+	path := filepath.Join("./uploads/"+name+"/"+in.GetFilePath(), in.GetFileName())
 	file, err := os.Create(path)
 	if err != nil {
-		e := os.MkdirAll("./uploads/"+in.GetFilePath(), os.ModePerm)
+		e := os.MkdirAll("./uploads/"+name+"/"+in.GetFilePath(), os.ModePerm)
 		if e != nil {
 			log.Fatalf("Error when creating file: %s", err)
 		}
@@ -76,7 +76,7 @@ func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChu
 				FilePath: s.filePath,
 				FileName: s.fileName,
 			})
-			
+
 			return stream.SendAndClose(&data.UploadStatus{})
 		}
 		if err != nil {
