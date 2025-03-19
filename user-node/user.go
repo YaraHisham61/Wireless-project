@@ -200,7 +200,7 @@ func main() {
 			ports := requestVideoDownload(client_master, name, path)
 			log.Println(ports)
 			for _, port := range ports {
-				downloadVideo(port, name, path)
+				go downloadVideo(port, name, path)
 			}
 		} else {
 			fmt.Println("Invalid input")
