@@ -69,16 +69,51 @@ func uploadVideo(data_client data.DataClient, f *os.File, fileSize int64) {
 		time.Sleep(time.Millisecond * 100) // Optional throttling
 	}
 }
-func requestVideoDownload(request master.MasterClient, fileName string, filePath string) ([]string){
+func requestVideoDownload(request master.MasterClient, fileName string, filePath string) []string {
 	res, err := request.RequestDownload(context.Background(), &master.DownloadRequest{
-		FileName: fileName,
-		FilePath: filePath,
+		FileName:   fileName,
+		FilePath:   filePath,
 		ClientPort: port,
 	})
 	if err != nil {
 		log.Fatalf("Error when calling RequestDownload: %s", err)
 	}
 	return res.GetPorts()
+}
+func downloadVideo(port string, fileName string, filePath string) {
+	conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Cannot start client : %s", err)
+	}
+	defer conn.Close()
+	data_client := data.NewDataClient(conn)
+	stream, err := data_client.DownloadVideo(context.Background(), &data.DownloadVideoRequest{
+		FileName: fileName,
+		FilePath: filePath,
+	})
+	if err != nil {
+		log.Fatalf("Error when calling DownloadVideo: %s", err)
+	}
+	path:= "../downloads/" + port + "/" + filePath
+	os.MkdirAll(path, os.ModePerm)
+	file, err := os.Create(path + fileName)
+	if err != nil {
+		log.Fatalf("Error when creating file: %s", err)
+	}
+	defer file.Close()
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Error when receiving video chunk: %s", err)
+		}
+		_, err = file.Write(chunk.Data)
+		if err != nil {
+			log.Fatalf("Error when writing video chunk to file: %s", err)
+		}
+	}
 }
 func main() {
 
@@ -89,7 +124,6 @@ func main() {
 	server := grpc.NewServer()
 	user.RegisterUserServer(server, &UserServer{})
 	client_master := master.NewMasterClient(conn)
-
 	defer server.Stop()
 	defer conn.Close()
 	lis, err := net.Listen("tcp", ":0")
@@ -165,6 +199,9 @@ func main() {
 			}
 			ports := requestVideoDownload(client_master, name, path)
 			log.Println(ports)
+			for _, port := range ports {
+				downloadVideo(port, name, path)
+			}
 		} else {
 			fmt.Println("Invalid input")
 		}

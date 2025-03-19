@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Data_UploadVideo_FullMethodName               = "/video.Data/UploadVideo"
 	Data_EstablishUploadConnection_FullMethodName = "/video.Data/EstablishUploadConnection"
+	Data_DownloadVideo_FullMethodName             = "/video.Data/DownloadVideo"
 )
 
 // DataClient is the client API for Data service.
@@ -29,6 +30,7 @@ const (
 type DataClient interface {
 	UploadVideo(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, UploadStatus], error)
 	EstablishUploadConnection(ctx context.Context, in *VideoUploadData, opts ...grpc.CallOption) (*UploadStatus, error)
+	DownloadVideo(ctx context.Context, in *DownloadVideoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VideoChunk], error)
 }
 
 type dataClient struct {
@@ -62,12 +64,32 @@ func (c *dataClient) EstablishUploadConnection(ctx context.Context, in *VideoUpl
 	return out, nil
 }
 
+func (c *dataClient) DownloadVideo(ctx context.Context, in *DownloadVideoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VideoChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Data_ServiceDesc.Streams[1], Data_DownloadVideo_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[DownloadVideoRequest, VideoChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Data_DownloadVideoClient = grpc.ServerStreamingClient[VideoChunk]
+
 // DataServer is the server API for Data service.
 // All implementations must embed UnimplementedDataServer
 // for forward compatibility.
 type DataServer interface {
 	UploadVideo(grpc.ClientStreamingServer[VideoChunk, UploadStatus]) error
 	EstablishUploadConnection(context.Context, *VideoUploadData) (*UploadStatus, error)
+	DownloadVideo(*DownloadVideoRequest, grpc.ServerStreamingServer[VideoChunk]) error
 	mustEmbedUnimplementedDataServer()
 }
 
@@ -83,6 +105,9 @@ func (UnimplementedDataServer) UploadVideo(grpc.ClientStreamingServer[VideoChunk
 }
 func (UnimplementedDataServer) EstablishUploadConnection(context.Context, *VideoUploadData) (*UploadStatus, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EstablishUploadConnection not implemented")
+}
+func (UnimplementedDataServer) DownloadVideo(*DownloadVideoRequest, grpc.ServerStreamingServer[VideoChunk]) error {
+	return status.Errorf(codes.Unimplemented, "method DownloadVideo not implemented")
 }
 func (UnimplementedDataServer) mustEmbedUnimplementedDataServer() {}
 func (UnimplementedDataServer) testEmbeddedByValue()              {}
@@ -130,6 +155,17 @@ func _Data_EstablishUploadConnection_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Data_DownloadVideo_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DownloadVideoRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DataServer).DownloadVideo(m, &grpc.GenericServerStream[DownloadVideoRequest, VideoChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Data_DownloadVideoServer = grpc.ServerStreamingServer[VideoChunk]
+
 // Data_ServiceDesc is the grpc.ServiceDesc for Data service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -147,6 +183,11 @@ var Data_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "UploadVideo",
 			Handler:       _Data_UploadVideo_Handler,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "DownloadVideo",
+			Handler:       _Data_DownloadVideo_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "data.proto",

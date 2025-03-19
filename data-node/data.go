@@ -89,6 +89,30 @@ func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChu
 	}
 
 }
+func (s *DataServer) DownloadVideo(in *data.DownloadVideoRequest, stream data.Data_DownloadVideoServer) error {
+	file_path := in.GetFilePath()
+	file_name := in.GetFileName()
+	file, err := os.Open(filepath.Join("./uploads/"+name+"/"+file_path, file_name))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	buffer := make([]byte, 1024)
+	for {
+		n, err := file.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		if err := stream.Send(&data.VideoChunk{Data: buffer[:n]}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatalf("Please provide the port number")

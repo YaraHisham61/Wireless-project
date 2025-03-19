@@ -12,7 +12,13 @@ message VideoUploadData {
     string filePath = 2;
     int64 fileSize = 3;
 }
+message DownloadVideoRequest {
+    string fileName = 1;
+    string filePath = 2;
+    string clientPort = 3;
+}
 service Data {
     rpc UploadVideo(stream VideoChunk) returns (UploadStatus);
     rpc EstablishUploadConnection(VideoUploadData) returns (UploadStatus);
+    rpc DownloadVideo(DownloadVideoRequest) returns (stream VideoChunk);
 }
