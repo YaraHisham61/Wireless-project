@@ -45,7 +45,7 @@ type MasterServer struct {
 	master.UnimplementedMasterServer
 }
 
-func (s MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*master.InitResponse, error) {
+func (s *MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*master.InitResponse, error) {
 	node_name := "Node" + strconv.Itoa(len(node_life_tracker))
 	node_life_tracker[node_name] = Node{
 		port:     in.GetPort(),
@@ -56,7 +56,7 @@ func (s MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*ma
 		Message: node_name,
 	}, nil
 }
-func (s MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*master.BeatResponse, error) {
+func (s *MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*master.BeatResponse, error) {
 	node_name := in.GetNodeName()
 	log.Printf("Received Heartbeat from %s", node_name)
 	node_life_tracker[node_name] = Node{
@@ -67,7 +67,7 @@ func (s MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*master
 		Message: "Heartbeat received by Master from you node " + node_name,
 	}, nil
 }
-func (s MasterServer) RequestUpload(ctx context.Context, in *master.UploadRequest) (*master.UploadResponse, error) {
+func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadRequest) (*master.UploadResponse, error) {
 	client_port := in.GetClientPort()
 	if users[client_port] == nil {
 		conn, err := grpc.NewClient("localhost:"+client_port, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -88,7 +88,7 @@ func (s MasterServer) RequestUpload(ctx context.Context, in *master.UploadReques
 		}
 	}
 }
-func (s MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUploadFinishedRequest) (*master.DataNodeUploadFinishedStatus, error) {
+func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUploadFinishedRequest) (*master.DataNodeUploadFinishedStatus, error) {
 	node_name := in.GetNodeName()
 	file_path := in.GetFilePath()
 	file_name := in.GetFileName()
@@ -111,6 +111,24 @@ func (s MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUpl
 	}
 	return &master.DataNodeUploadFinishedStatus{}, nil
 }
+func (s *MasterServer) RequestDownload(ctx context.Context,in *master.DownloadRequest) (*master.DownloadResponse, error){
+	file_name := in.GetFileName()
+	file_path := in.GetFilePath()
+	ports_list := make([]string, 0)
+	for node, file := range data_nodes_tracker{
+		if !check_node_life(node){
+			continue
+		}
+		for _, f := range file{
+			if f.fileName == file_name && f.filePath == file_path{
+				ports_list = append(ports_list, node_life_tracker[node].port)
+			}
+		}
+	}
+	return &master.DownloadResponse{
+		Ports: ports_list,
+	}, nil
+}
 
 func main() {
 	lis, err := net.Listen("tcp", "localhost:8080")
@@ -120,7 +138,7 @@ func main() {
 	server := grpc.NewServer()
 	defer server.Stop()
 	master_server := MasterServer{}
-	master.RegisterMasterServer(server, master_server)
+	master.RegisterMasterServer(server, &master_server)
 	err = server.Serve(lis)
 	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)

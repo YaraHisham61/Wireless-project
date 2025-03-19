@@ -69,7 +69,17 @@ func uploadVideo(data_client data.DataClient, f *os.File, fileSize int64) {
 		time.Sleep(time.Millisecond * 100) // Optional throttling
 	}
 }
-
+func requestVideoDownload(request master.MasterClient, fileName string, filePath string) ([]string){
+	res, err := request.RequestDownload(context.Background(), &master.DownloadRequest{
+		FileName: fileName,
+		FilePath: filePath,
+		ClientPort: port,
+	})
+	if err != nil {
+		log.Fatalf("Error when calling RequestDownload: %s", err)
+	}
+	return res.GetPorts()
+}
 func main() {
 
 	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -99,7 +109,6 @@ func main() {
 		if answer == 0 {
 			return
 		} else if answer == 1 {
-
 			fmt.Println("Enter the path of the video file you want to upload")
 			var path string
 			fmt.Scan(&path)
@@ -142,6 +151,20 @@ func main() {
 			uploadVideo(data_client, f, info.Size())
 			f.Close()
 		} else if answer == 2 {
+			fmt.Println("Enter the path of the video file you want to download")
+			var path string
+			fmt.Scan(&path)
+			fmt.Println("Enter the name of the video file you want to download")
+			var name string
+			fmt.Scan(&name)
+			if path[len(path)-1:] != "/" {
+				path += "/"
+			}
+			if name[len(name)-4:] != ".mp4" {
+				name += ".mp4"
+			}
+			ports := requestVideoDownload(client_master, name, path)
+			log.Println(ports)
 		} else {
 			fmt.Println("Invalid input")
 		}

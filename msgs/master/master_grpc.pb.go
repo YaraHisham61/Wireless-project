@@ -24,6 +24,7 @@ const (
 	Master_RequestUpload_FullMethodName     = "/Master/RequestUpload"
 	Master_UploadFinished_FullMethodName    = "/Master/UploadFinished"
 	Master_ClientUploadCheck_FullMethodName = "/Master/ClientUploadCheck"
+	Master_RequestDownload_FullMethodName   = "/Master/RequestDownload"
 )
 
 // MasterClient is the client API for Master service.
@@ -35,6 +36,7 @@ type MasterClient interface {
 	RequestUpload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (*UploadResponse, error)
 	UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*DataNodeUploadFinishedStatus, error)
 	ClientUploadCheck(ctx context.Context, in *ClientUploadCheckRequest, opts ...grpc.CallOption) (*ClientUploadCheckResponse, error)
+	RequestDownload(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (*DownloadResponse, error)
 }
 
 type masterClient struct {
@@ -95,6 +97,16 @@ func (c *masterClient) ClientUploadCheck(ctx context.Context, in *ClientUploadCh
 	return out, nil
 }
 
+func (c *masterClient) RequestDownload(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (*DownloadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DownloadResponse)
+	err := c.cc.Invoke(ctx, Master_RequestDownload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MasterServer is the server API for Master service.
 // All implementations must embed UnimplementedMasterServer
 // for forward compatibility.
@@ -104,6 +116,7 @@ type MasterServer interface {
 	RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error)
 	UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*DataNodeUploadFinishedStatus, error)
 	ClientUploadCheck(context.Context, *ClientUploadCheckRequest) (*ClientUploadCheckResponse, error)
+	RequestDownload(context.Context, *DownloadRequest) (*DownloadResponse, error)
 	mustEmbedUnimplementedMasterServer()
 }
 
@@ -128,6 +141,9 @@ func (UnimplementedMasterServer) UploadFinished(context.Context, *DataNodeUpload
 }
 func (UnimplementedMasterServer) ClientUploadCheck(context.Context, *ClientUploadCheckRequest) (*ClientUploadCheckResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClientUploadCheck not implemented")
+}
+func (UnimplementedMasterServer) RequestDownload(context.Context, *DownloadRequest) (*DownloadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestDownload not implemented")
 }
 func (UnimplementedMasterServer) mustEmbedUnimplementedMasterServer() {}
 func (UnimplementedMasterServer) testEmbeddedByValue()                {}
@@ -240,6 +256,24 @@ func _Master_ClientUploadCheck_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Master_RequestDownload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterServer).RequestDownload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Master_RequestDownload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterServer).RequestDownload(ctx, req.(*DownloadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Master_ServiceDesc is the grpc.ServiceDesc for Master service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +300,10 @@ var Master_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClientUploadCheck",
 			Handler:    _Master_ClientUploadCheck_Handler,
+		},
+		{
+			MethodName: "RequestDownload",
+			Handler:    _Master_RequestDownload_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

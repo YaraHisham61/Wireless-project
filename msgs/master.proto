@@ -37,10 +37,19 @@ message ClientUploadCheckRequest {
 message ClientUploadCheckResponse {
   string message = 1;
 }
+message DownloadRequest {
+  string fileName = 1;
+  string filePath = 2;
+  string clientPort = 3;
+}
+message DownloadResponse {
+  repeated string ports = 1;
+}
 service Master {
   rpc InitNode(InitRequest) returns (InitResponse) {}
   rpc Beat(BeatRequest) returns (BeatResponse) {}
   rpc RequestUpload(UploadRequest) returns (UploadResponse) {}
   rpc UploadFinished (DataNodeUploadFinishedRequest) returns (DataNodeUploadFinishedStatus) {}
   rpc ClientUploadCheck(ClientUploadCheckRequest) returns (ClientUploadCheckResponse) {}
+  rpc RequestDownload(DownloadRequest) returns (DownloadResponse) {}
 }
