@@ -27,7 +27,8 @@ message DataNodeUploadFinishedRequest {
   string filePath = 2;
   string nodeName = 3;
 }
-message DataNodeUploadFinishedStatus {
+message ReplicateRequest {
+  repeated string dataNodes = 1;
 }
 message ClientUploadCheckRequest {
   string fileName = 1;
@@ -49,7 +50,7 @@ service Master {
   rpc InitNode(InitRequest) returns (InitResponse) {}
   rpc Beat(BeatRequest) returns (BeatResponse) {}
   rpc RequestUpload(UploadRequest) returns (UploadResponse) {}
-  rpc UploadFinished (DataNodeUploadFinishedRequest) returns (DataNodeUploadFinishedStatus) {}
+  rpc UploadFinished (DataNodeUploadFinishedRequest) returns (ReplicateRequest) {}
   rpc ClientUploadCheck(ClientUploadCheckRequest) returns (ClientUploadCheckResponse) {}
   rpc RequestDownload(DownloadRequest) returns (DownloadResponse) {}
 }

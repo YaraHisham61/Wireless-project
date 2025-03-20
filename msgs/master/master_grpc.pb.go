@@ -34,7 +34,7 @@ type MasterClient interface {
 	InitNode(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	Beat(ctx context.Context, in *BeatRequest, opts ...grpc.CallOption) (*BeatResponse, error)
 	RequestUpload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (*UploadResponse, error)
-	UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*DataNodeUploadFinishedStatus, error)
+	UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*ReplicateRequest, error)
 	ClientUploadCheck(ctx context.Context, in *ClientUploadCheckRequest, opts ...grpc.CallOption) (*ClientUploadCheckResponse, error)
 	RequestDownload(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (*DownloadResponse, error)
 }
@@ -77,9 +77,9 @@ func (c *masterClient) RequestUpload(ctx context.Context, in *UploadRequest, opt
 	return out, nil
 }
 
-func (c *masterClient) UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*DataNodeUploadFinishedStatus, error) {
+func (c *masterClient) UploadFinished(ctx context.Context, in *DataNodeUploadFinishedRequest, opts ...grpc.CallOption) (*ReplicateRequest, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DataNodeUploadFinishedStatus)
+	out := new(ReplicateRequest)
 	err := c.cc.Invoke(ctx, Master_UploadFinished_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ type MasterServer interface {
 	InitNode(context.Context, *InitRequest) (*InitResponse, error)
 	Beat(context.Context, *BeatRequest) (*BeatResponse, error)
 	RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error)
-	UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*DataNodeUploadFinishedStatus, error)
+	UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*ReplicateRequest, error)
 	ClientUploadCheck(context.Context, *ClientUploadCheckRequest) (*ClientUploadCheckResponse, error)
 	RequestDownload(context.Context, *DownloadRequest) (*DownloadResponse, error)
 	mustEmbedUnimplementedMasterServer()
@@ -136,7 +136,7 @@ func (UnimplementedMasterServer) Beat(context.Context, *BeatRequest) (*BeatRespo
 func (UnimplementedMasterServer) RequestUpload(context.Context, *UploadRequest) (*UploadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestUpload not implemented")
 }
-func (UnimplementedMasterServer) UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*DataNodeUploadFinishedStatus, error) {
+func (UnimplementedMasterServer) UploadFinished(context.Context, *DataNodeUploadFinishedRequest) (*ReplicateRequest, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UploadFinished not implemented")
 }
 func (UnimplementedMasterServer) ClientUploadCheck(context.Context, *ClientUploadCheckRequest) (*ClientUploadCheckResponse, error) {
