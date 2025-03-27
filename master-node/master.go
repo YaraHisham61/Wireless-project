@@ -118,7 +118,6 @@ func check_replication() {
 					continue
 				}
 				for _, f := range node_files {
-					fmt.Printf("f.fileName = %s, f.filePath = %s\n", f.fileName, f.filePath)
 					if f.fileName == file.fileName && f.filePath == file.filePath {
 						is_found = true
 						count++
@@ -136,7 +135,7 @@ func check_replication() {
 			threshold -= count
 			nodes_count := len(nodes_without_file)
 
-			fmt.Printf("count = %d,threshold = %d, nodes_count = %d\n", count, threshold, nodes_count)
+			fmt.Printf("For file %s count = %d,threshold = %d, nodes_count = %d\n", file.filePath+file.fileName, count, threshold, nodes_count)
 			x0 := -1
 			x1 := -1
 			source_machine_ip := "localhost:" + node_life_tracker[source_machine].port
@@ -152,7 +151,7 @@ func check_replication() {
 					x1 = i
 				}
 				fmt.Printf("i = %d\n", i)
-				receiver_ip:= "localhost:" + node_life_tracker[nodes_without_file[i]].port
+				receiver_ip := "localhost:" + node_life_tracker[nodes_without_file[i]].port
 				notifyMachineDataTransfer(source_machine_ip, receiver_ip, file)
 				data_nodes_tracker[nodes_without_file[i]] = append(data_nodes_tracker[nodes_without_file[i]], File{
 					fileName: file.fileName,

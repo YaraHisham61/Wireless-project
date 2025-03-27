@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -21,6 +22,7 @@ var port string
 
 // The map will contain the files that are currently uploading to prevent from downloading it
 var currently_uploading = make(map[string]bool)
+var upload_file_mutex = sync.Mutex{}
 
 type UserServer struct {
 	user.UnimplementedUserServer
@@ -44,7 +46,37 @@ func getDataNodePort(request master.MasterClient, fileName string, filePath stri
 	data_node_name := res.NodeName
 	return data_node_port, data_node_name
 }
-func uploadVideo(data_client data.DataClient, f *os.File, fileSize int64) {
+func uploadVideo(client_master master.MasterClient,name string,path string) {
+	upload_file_mutex.Lock()
+	defer upload_file_mutex.Unlock()
+
+	port, nodeName := getDataNodePort(client_master, name, path)
+	fmt.Println("Connecting to data node with port " + port)
+	data_conn, err_data := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err_data != nil {
+		log.Fatalf("Cannot start client : %s", err_data)
+	}
+	defer data_conn.Close()
+	data_client := data.NewDataClient(data_conn)
+	f, err := os.Open("../" + path + name)
+	if err != nil {
+		log.Fatalf("Error when opening file: %s", err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		log.Fatalf("Error when getting file info: %s", err)
+	}
+	//* Connection establishment
+	_, err = data_client.EstablishUploadConnection(context.Background(),
+		&data.VideoUploadData{FilePath: path,
+			FileName: name,
+			FileSize: info.Size(),
+		})
+	if err != nil {
+		log.Fatalf("Error when calling EstablishUploadConnection: %s", err)
+	}
+	currently_uploading[nodeName+"/"+path+name+".mp4"] = true
 	stream, err := data_client.UploadVideo(context.Background())
 	if err != nil {
 		log.Fatalf("Error when calling UploadVideo: %s", err)
@@ -94,7 +126,7 @@ func downloadVideo(port string, fileName string, filePath string) {
 	if err != nil {
 		log.Fatalf("Error when calling DownloadVideo: %s", err)
 	}
-	path:= "../downloads/" + port + "/" + filePath
+	path := "../downloads/" + port + "/" + filePath
 	os.MkdirAll(path, os.ModePerm)
 	file, err := os.Create(path + fileName)
 	if err != nil {
@@ -114,6 +146,7 @@ func downloadVideo(port string, fileName string, filePath string) {
 			log.Fatalf("Error when writing video chunk to file: %s", err)
 		}
 	}
+	log.Println("Downloaded file " + fileName + " from node with ip: " + port)
 }
 func main() {
 
@@ -133,6 +166,7 @@ func main() {
 	port = strconv.Itoa(lis.Addr().(*net.TCPAddr).Port)
 	fmt.Println("Client node started on port " + port)
 	go server.Serve(lis)
+	upload_file_mutex = sync.Mutex{}
 	answer := -1
 	for answer != 0 {
 		fmt.Println("Hello there! What would you like to do?")
@@ -155,35 +189,7 @@ func main() {
 			if name[len(name)-4:] != ".mp4" {
 				name += ".mp4"
 			}
-			port, nodeName := getDataNodePort(client_master, name, path)
-			fmt.Println("Connecting to data node with port " + port)
-			data_conn, err_data := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				log.Fatalf("Cannot start client : %s", err_data)
-			}
-			defer data_conn.Close()
-			data_client := data.NewDataClient(data_conn)
-			f, err := os.Open("../" + path + name)
-			if err != nil {
-				log.Fatalf("Error when opening file: %s", err)
-			}
-			info, err := f.Stat()
-			if err != nil {
-				log.Fatalf("Error when getting file info: %s", err)
-			}
-			//* Connection establishment
-			_, err = data_client.EstablishUploadConnection(context.Background(),
-				&data.VideoUploadData{FilePath: path,
-					FileName: name,
-					FileSize: info.Size(),
-				})
-			if err != nil {
-				log.Fatalf("Error when calling EstablishUploadConnection: %s", err)
-			}
-			currently_uploading[nodeName+"/"+path+name+".mp4"] = true
-			//* File upload
-			uploadVideo(data_client, f, info.Size())
-			f.Close()
+			go uploadVideo(client_master,name,path)
 		} else if answer == 2 {
 			fmt.Println("Enter the path of the video file you want to download")
 			var path string
