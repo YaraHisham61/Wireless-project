@@ -49,7 +49,7 @@ func uploadVideo(data_client data.DataClient, f *os.File, fileSize int64) {
 	if err != nil {
 		log.Fatalf("Error when calling UploadVideo: %s", err)
 	}
-	buf := make([]byte, fileSize)
+	buf := make([]byte, 1024*1024)
 	for {
 		n, err := f.Read(buf)
 		if err == io.EOF {

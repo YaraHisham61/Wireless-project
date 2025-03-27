@@ -17,17 +17,25 @@ message DownloadVideoRequest {
     string fileName = 1;
     string filePath = 2;
 }
-message VideoReplicateRequest{
+message ReplicateNotification{
     string fileName = 1;
     string filePath = 2;
-    repeated string dataNodes = 3;
+    string destination = 3;
+    bool source = 4;
 }
 message VideoReplicateResponse{
     string message = 1;
+}
+message ReplicateStatus{
+    string message = 1;
+}
+message ReplicateNotificationStatus{
+string message =1;
 }
 service Data {
     rpc UploadVideo(stream VideoChunk) returns (UploadStatus);
     rpc EstablishUploadConnection(VideoUploadData) returns (UploadStatus);
     rpc DownloadVideo(DownloadVideoRequest) returns (stream VideoChunk);
-    rpc ReplicateVideo(VideoReplicateRequest) returns (UploadStatus);
+    rpc ReplicateNotify(ReplicateNotification) returns (ReplicateNotificationStatus);
+    rpc NodeToNodeReplicate(stream VideoChunk) returns (ReplicateStatus);
 }

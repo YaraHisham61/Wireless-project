@@ -22,7 +22,8 @@ const (
 	Data_UploadVideo_FullMethodName               = "/video.Data/UploadVideo"
 	Data_EstablishUploadConnection_FullMethodName = "/video.Data/EstablishUploadConnection"
 	Data_DownloadVideo_FullMethodName             = "/video.Data/DownloadVideo"
-	Data_ReplicateVideo_FullMethodName            = "/video.Data/ReplicateVideo"
+	Data_ReplicateNotify_FullMethodName           = "/video.Data/ReplicateNotify"
+	Data_NodeToNodeReplicate_FullMethodName       = "/video.Data/NodeToNodeReplicate"
 )
 
 // DataClient is the client API for Data service.
@@ -32,7 +33,8 @@ type DataClient interface {
 	UploadVideo(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, UploadStatus], error)
 	EstablishUploadConnection(ctx context.Context, in *VideoUploadData, opts ...grpc.CallOption) (*UploadStatus, error)
 	DownloadVideo(ctx context.Context, in *DownloadVideoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VideoChunk], error)
-	ReplicateVideo(ctx context.Context, in *VideoReplicateRequest, opts ...grpc.CallOption) (*UploadStatus, error)
+	ReplicateNotify(ctx context.Context, in *ReplicateNotification, opts ...grpc.CallOption) (*ReplicateNotificationStatus, error)
+	NodeToNodeReplicate(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, ReplicateStatus], error)
 }
 
 type dataClient struct {
@@ -85,15 +87,28 @@ func (c *dataClient) DownloadVideo(ctx context.Context, in *DownloadVideoRequest
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Data_DownloadVideoClient = grpc.ServerStreamingClient[VideoChunk]
 
-func (c *dataClient) ReplicateVideo(ctx context.Context, in *VideoReplicateRequest, opts ...grpc.CallOption) (*UploadStatus, error) {
+func (c *dataClient) ReplicateNotify(ctx context.Context, in *ReplicateNotification, opts ...grpc.CallOption) (*ReplicateNotificationStatus, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UploadStatus)
-	err := c.cc.Invoke(ctx, Data_ReplicateVideo_FullMethodName, in, out, cOpts...)
+	out := new(ReplicateNotificationStatus)
+	err := c.cc.Invoke(ctx, Data_ReplicateNotify_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
+
+func (c *dataClient) NodeToNodeReplicate(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, ReplicateStatus], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Data_ServiceDesc.Streams[2], Data_NodeToNodeReplicate_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[VideoChunk, ReplicateStatus]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Data_NodeToNodeReplicateClient = grpc.ClientStreamingClient[VideoChunk, ReplicateStatus]
 
 // DataServer is the server API for Data service.
 // All implementations must embed UnimplementedDataServer
@@ -102,7 +117,8 @@ type DataServer interface {
 	UploadVideo(grpc.ClientStreamingServer[VideoChunk, UploadStatus]) error
 	EstablishUploadConnection(context.Context, *VideoUploadData) (*UploadStatus, error)
 	DownloadVideo(*DownloadVideoRequest, grpc.ServerStreamingServer[VideoChunk]) error
-	ReplicateVideo(context.Context, *VideoReplicateRequest) (*UploadStatus, error)
+	ReplicateNotify(context.Context, *ReplicateNotification) (*ReplicateNotificationStatus, error)
+	NodeToNodeReplicate(grpc.ClientStreamingServer[VideoChunk, ReplicateStatus]) error
 	mustEmbedUnimplementedDataServer()
 }
 
@@ -122,8 +138,11 @@ func (UnimplementedDataServer) EstablishUploadConnection(context.Context, *Video
 func (UnimplementedDataServer) DownloadVideo(*DownloadVideoRequest, grpc.ServerStreamingServer[VideoChunk]) error {
 	return status.Errorf(codes.Unimplemented, "method DownloadVideo not implemented")
 }
-func (UnimplementedDataServer) ReplicateVideo(context.Context, *VideoReplicateRequest) (*UploadStatus, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReplicateVideo not implemented")
+func (UnimplementedDataServer) ReplicateNotify(context.Context, *ReplicateNotification) (*ReplicateNotificationStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReplicateNotify not implemented")
+}
+func (UnimplementedDataServer) NodeToNodeReplicate(grpc.ClientStreamingServer[VideoChunk, ReplicateStatus]) error {
+	return status.Errorf(codes.Unimplemented, "method NodeToNodeReplicate not implemented")
 }
 func (UnimplementedDataServer) mustEmbedUnimplementedDataServer() {}
 func (UnimplementedDataServer) testEmbeddedByValue()              {}
@@ -182,23 +201,30 @@ func _Data_DownloadVideo_Handler(srv interface{}, stream grpc.ServerStream) erro
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Data_DownloadVideoServer = grpc.ServerStreamingServer[VideoChunk]
 
-func _Data_ReplicateVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(VideoReplicateRequest)
+func _Data_ReplicateNotify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplicateNotification)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataServer).ReplicateVideo(ctx, in)
+		return srv.(DataServer).ReplicateNotify(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Data_ReplicateVideo_FullMethodName,
+		FullMethod: Data_ReplicateNotify_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataServer).ReplicateVideo(ctx, req.(*VideoReplicateRequest))
+		return srv.(DataServer).ReplicateNotify(ctx, req.(*ReplicateNotification))
 	}
 	return interceptor(ctx, in, info, handler)
 }
+
+func _Data_NodeToNodeReplicate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DataServer).NodeToNodeReplicate(&grpc.GenericServerStream[VideoChunk, ReplicateStatus]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Data_NodeToNodeReplicateServer = grpc.ClientStreamingServer[VideoChunk, ReplicateStatus]
 
 // Data_ServiceDesc is the grpc.ServiceDesc for Data service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -212,8 +238,8 @@ var Data_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Data_EstablishUploadConnection_Handler,
 		},
 		{
-			MethodName: "ReplicateVideo",
-			Handler:    _Data_ReplicateVideo_Handler,
+			MethodName: "ReplicateNotify",
+			Handler:    _Data_ReplicateNotify_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -226,6 +252,11 @@ var Data_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "DownloadVideo",
 			Handler:       _Data_DownloadVideo_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "NodeToNodeReplicate",
+			Handler:       _Data_NodeToNodeReplicate_Handler,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "data.proto",
