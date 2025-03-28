@@ -17,6 +17,35 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+
+var name string
+var client_master master.MasterClient
+var upload_file_mutex sync.Mutex
+var replicate_mutex sync.Mutex
+var IP string
+type DataServer struct {
+	data.UnimplementedDataServer
+	currentFile   *os.File
+	fileName      string
+	filePath      string
+	replicateFile *os.File
+}
+
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil { // IPv4 only
+				return ipNet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no local IP found")
+}
 func sendHeartbeat(client master.MasterClient) {
 	for {
 		_, err := client.Beat(context.Background(), &master.BeatRequest{NodeName: name})
@@ -26,23 +55,8 @@ func sendHeartbeat(client master.MasterClient) {
 		time.Sleep(950 * time.Millisecond)
 	}
 }
-
-var name string
-var port string
-var client_master master.MasterClient
-var upload_file_mutex sync.Mutex
-var replicate_mutex sync.Mutex
-
-type DataServer struct {
-	data.UnimplementedDataServer
-	currentFile   *os.File
-	fileName      string
-	filePath      string
-	replicateFile *os.File
-}
-
 func initConn() error {
-	response, err := client_master.InitNode(context.Background(), &master.InitRequest{Port: port})
+	response, err := client_master.InitNode(context.Background(), &master.InitRequest{IP: IP})
 	if err != nil {
 		// terminate program
 		log.Fatalf("Error when calling InitNode: %s", err)
@@ -208,15 +222,63 @@ func (s *DataServer) DownloadVideo(in *data.DownloadVideoRequest, stream data.Da
 	}
 	return nil
 }
+func getPreferredIP() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, i := range interfaces {
+		if i.Flags&net.FlagUp == 0 || i.Flags&net.FlagLoopback != 0 {
+			continue // Skip down or loopback interfaces
+		}
+
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			if ip.To4() != nil {
+				return ip.String(), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no valid IP found")
+}
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatalf("Please provide the port number")
 		return
 	}
-	port = os.Args[1]
+	if len(os.Args) < 3 {
+		log.Fatalf("Please provide the master server ip")
+		return
+	}
+	port := os.Args[1]
+	master_ip := os.Args[2]
+	ip, err := getPreferredIP()
+	if err != nil {
+		log.Fatalf("Error when getting local IP: %s", err)
+		return
+	}
+	IP = ip + ":" + port
+	fmt.Println("Data Node IP: ", IP)
 	upload_file_mutex = sync.Mutex{}
 	replicate_mutex = sync.Mutex{}
-	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(master_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Cannot start data : %s", err)
 	}
@@ -229,7 +291,7 @@ func main() {
 	server := grpc.NewServer()
 	data_server := DataServer{}
 	data.RegisterDataServer(server, &data_server)
-	lis, err := net.Listen("tcp", "localhost:"+port)
+	lis, err := net.Listen("tcp", IP)
 	if err != nil {
 		log.Fatalf("Cannot start server : %s", err)
 	}

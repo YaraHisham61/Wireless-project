@@ -18,14 +18,15 @@ import (
 )
 
 type Node struct {
-	port     string
+	ip     string
 	currTime time.Time
 }
 type File struct {
 	fileName string
 	filePath string
 }
-
+// Master IP
+var IP string
 // map of string as key and pair as value that contain string and time.Time
 var node_life_tracker = make(map[string]Node)
 var wait = sync.WaitGroup{}
@@ -35,8 +36,8 @@ var data_nodes_tracker = make(map[string][]File)
 var users = make(map[string]user.UserClient)
 var original_file_source = make(map[File]string)
 
-// The map maintains the port of a client as a key and the list of files that the client is currently uploading
-// The map will contain node_name + file path + name = client_port
+// The map maintains the ip of a client as a key and the list of files that the client is currently uploading
+// The map will contain node_name + file path + name = node_ip
 var files_tracker = make(map[string]string)
 
 // Check if the node is still alive and this by checking if it exceeds 1 second as threshold
@@ -48,7 +49,21 @@ func check_node_life(node_name string) bool {
 type MasterServer struct {
 	master.UnimplementedMasterServer
 }
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
 
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil { // IPv4 only
+				return ipNet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no local IP found")
+}
 func senderReplication(client data.DataClient, f File, receiver_ip string) {
 	a, err := client.ReplicateNotify(context.Background(), &data.ReplicateNotification{
 		FileName:    f.fileName,
@@ -138,7 +153,7 @@ func check_replication() {
 			fmt.Printf("For file %s count = %d,threshold = %d, nodes_count = %d\n", file.filePath+file.fileName, count, threshold, nodes_count)
 			x0 := -1
 			x1 := -1
-			source_machine_ip := "localhost:" + node_life_tracker[source_machine].port
+			source_machine_ip := node_life_tracker[source_machine].ip
 			for threshold != 0 && nodes_count != 0 {
 				i := rand.Intn(nodes_count)
 				for i == x0 || i == x1 {
@@ -151,7 +166,7 @@ func check_replication() {
 					x1 = i
 				}
 				fmt.Printf("i = %d\n", i)
-				receiver_ip := "localhost:" + node_life_tracker[nodes_without_file[i]].port
+				receiver_ip :=  node_life_tracker[nodes_without_file[i]].ip
 				notifyMachineDataTransfer(source_machine_ip, receiver_ip, file)
 				data_nodes_tracker[nodes_without_file[i]] = append(data_nodes_tracker[nodes_without_file[i]], File{
 					fileName: file.fileName,
@@ -168,13 +183,13 @@ func check_replication() {
 func (s *MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*master.InitResponse, error) {
 	node_name := "Node" + strconv.Itoa(len(node_life_tracker))
 	node_life_tracker[node_name] = Node{
-		port:     in.GetPort(),
+		ip:     in.GetIP(),
 		currTime: time.Now(),
 	}
 	if data_nodes_tracker[node_name] == nil {
 		data_nodes_tracker[node_name] = []File{}
 	}
-	log.Printf("New node %s connected with port number %s", node_name, in.GetPort())
+	log.Printf("New node %s connected with ip : %s", node_name, in.GetIP())
 	return &master.InitResponse{
 		Message: node_name,
 	}, nil
@@ -183,7 +198,7 @@ func (s *MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*maste
 	node_name := in.GetNodeName()
 	log.Printf("Received Heartbeat from %s\n", node_name)
 	node_life_tracker[node_name] = Node{
-		port:     node_life_tracker[node_name].port,
+		ip:     node_life_tracker[node_name].ip,
 		currTime: time.Now(),
 	}
 	return &master.BeatResponse{
@@ -191,22 +206,22 @@ func (s *MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*maste
 	}, nil
 }
 func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadRequest) (*master.UploadResponse, error) {
-	client_port := in.GetClientPort()
-	if users[client_port] == nil {
-		conn, err := grpc.NewClient("localhost:"+client_port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	client_ip := in.GetClientIP()
+	if users[client_ip] == nil {
+		conn, err := grpc.NewClient(client_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatalf("Error when calling RequestUpload: %s", err)
 		}
-		users[client_port] = user.NewUserClient(conn)
+		users[client_ip] = user.NewUserClient(conn)
 	}
 	for {
 		i := rand.Intn(len(node_life_tracker))
 		node_name := "Node" + strconv.Itoa(i)
 		if check_node_life(node_name) {
 
-			files_tracker[node_name+"/"+in.FilePath+in.FileName] = client_port
+			files_tracker[node_name+"/"+in.FilePath+in.FileName] = client_ip
 			return &master.UploadResponse{
-				Port:     node_life_tracker[node_name].port,
+				IP:     node_life_tracker[node_name].ip,
 				NodeName: node_name,
 			}, nil
 		}
@@ -226,10 +241,10 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 	}
 	data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
 	original_file_source[ff] = in.NodeName
-	user_port := files_tracker[in.NodeName+"/"+file_path+file_name]
+	user_ip := files_tracker[in.NodeName+"/"+file_path+file_name]
 	delete(files_tracker, in.NodeName+"/"+file_path+file_name)
 	// The master will notify the client with a successful message
-	_, err := users[user_port].NotifyUploadFinished(context.Background(), &user.UploadFinishedNotification{
+	_, err := users[user_ip].NotifyUploadFinished(context.Background(), &user.UploadFinishedNotification{
 		FilePath: file_path,
 		FileName: file_name,
 	})
@@ -243,7 +258,7 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 	// 		j := rand.Intn(len(node_life_tracker))
 	// 		replicate_node_name := "Node" + strconv.Itoa(j)
 	// 		if replicate_node_name != node_name && check_node_life(node_name) {
-	// 			replicate_ports[i] = node_life_tracker[replicate_node_name].port
+	// 			replicate_ports[i] = node_life_tracker[replicate_node_name].ip
 	// 			break
 	// 		}
 	// 	}
@@ -257,28 +272,71 @@ func (s *MasterServer) RequestDownload(ctx context.Context, in *master.DownloadR
 	file_name := in.GetFileName()
 	file_path := in.GetFilePath()
 	ports_list := make([]string, 0)
+	names_list := make([]string,0)
 	for node, file := range data_nodes_tracker {
 		if !check_node_life(node) {
 			continue
 		}
 		for _, f := range file {
 			if f.fileName == file_name && f.filePath == file_path {
-				ports_list = append(ports_list, node_life_tracker[node].port)
+				ports_list = append(ports_list, node_life_tracker[node].ip)
+				names_list = append(names_list,node)
 			}
 		}
 	}
 	return &master.DownloadResponse{
-		Ports: ports_list,
+		IPs: ports_list,
+		NodeNames: names_list,
 	}, nil
 }
+func getPreferredIP() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
 
+	for _, i := range interfaces {
+		if i.Flags&net.FlagUp == 0 || i.Flags&net.FlagLoopback != 0 {
+			continue // Skip down or loopback interfaces
+		}
+
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			if ip.To4() != nil {
+				return ip.String(), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no valid IP found")
+}
 func main() {
-
+	ip,err:=getPreferredIP()
+	if err != nil {
+		log.Fatalf("Error getting local IP: %s", err)
+	}
+	IP = ip+":8080"
+	fmt.Println("Master IP: ", IP)
 	server := grpc.NewServer()
 	defer server.Stop()
 	master_server := MasterServer{}
 	master.RegisterMasterServer(server, &master_server)
-	lis, err := net.Listen("tcp", "localhost:8080")
+	lis, err := net.Listen("tcp", IP)
 	if err != nil {
 		log.Fatalf("Cannot start server : %s", err)
 	}

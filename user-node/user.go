@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var port string
+var IP string
 
 // The map will contain the files that are currently uploading to prevent from downloading it
 var currently_uploading = make(map[string]bool)
@@ -35,24 +35,24 @@ func (s *UserServer) NotifyUploadFinished(ctx context.Context, in *user.UploadFi
 }
 func getDataNodePort(request master.MasterClient, fileName string, filePath string) (string, string) {
 	res, err := request.RequestUpload(context.Background(), &master.UploadRequest{
-		FileName:   fileName,
-		FilePath:   filePath,
-		ClientPort: port,
+		FileName: fileName,
+		FilePath: filePath,
+		ClientIP: IP,
 	})
 	if err != nil {
 		log.Fatalf("Error when calling RequestUpload: %s", err)
 	}
-	data_node_port := res.Port
+	data_node_ip := res.IP
 	data_node_name := res.NodeName
-	return data_node_port, data_node_name
+	return data_node_ip, data_node_name
 }
-func uploadVideo(client_master master.MasterClient,name string,path string) {
+func uploadVideo(client_master master.MasterClient, name string, path string) {
 	upload_file_mutex.Lock()
 	defer upload_file_mutex.Unlock()
 
-	port, nodeName := getDataNodePort(client_master, name, path)
-	fmt.Println("Connecting to data node with port " + port)
-	data_conn, err_data := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	ip, nodeName := getDataNodePort(client_master, name, path)
+	fmt.Println("Connecting to data node with ip : " + ip)
+	data_conn, err_data := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err_data != nil {
 		log.Fatalf("Cannot start client : %s", err_data)
 	}
@@ -101,19 +101,19 @@ func uploadVideo(client_master master.MasterClient,name string,path string) {
 		time.Sleep(time.Millisecond * 100) // Optional throttling
 	}
 }
-func requestVideoDownload(request master.MasterClient, fileName string, filePath string) []string {
+func requestVideoDownload(request master.MasterClient, fileName string, filePath string) ([]string,[]string) {
 	res, err := request.RequestDownload(context.Background(), &master.DownloadRequest{
-		FileName:   fileName,
-		FilePath:   filePath,
-		ClientPort: port,
+		FileName: fileName,
+		FilePath: filePath,
+		ClientIP: IP,
 	})
 	if err != nil {
 		log.Fatalf("Error when calling RequestDownload: %s", err)
 	}
-	return res.GetPorts()
+	return res.GetIPs(),res.GetNodeNames()
 }
-func downloadVideo(port string, fileName string, filePath string) {
-	conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func downloadVideo(ip string,nodeName string ,fileName string, filePath string) {
+	conn, err := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Cannot start client : %s", err)
 	}
@@ -126,7 +126,7 @@ func downloadVideo(port string, fileName string, filePath string) {
 	if err != nil {
 		log.Fatalf("Error when calling DownloadVideo: %s", err)
 	}
-	path := "../downloads/" + port + "/" + filePath
+	path := "../downloads/" + nodeName + "/" + filePath
 	os.MkdirAll(path, os.ModePerm)
 	file, err := os.Create(path + fileName)
 	if err != nil {
@@ -146,11 +146,67 @@ func downloadVideo(port string, fileName string, filePath string) {
 			log.Fatalf("Error when writing video chunk to file: %s", err)
 		}
 	}
-	log.Println("Downloaded file " + fileName + " from node with ip: " + port)
+	log.Println("Downloaded file " + fileName + " from node "+nodeName+" with ip: " + ip)
 }
-func main() {
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
 
-	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil { // IPv4 only
+				return ipNet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no local IP found")
+}
+func getPreferredIP() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, i := range interfaces {
+		if i.Flags&net.FlagUp == 0 || i.Flags&net.FlagLoopback != 0 {
+			continue // Skip down or loopback interfaces
+		}
+
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			if ip.To4() != nil {
+				return ip.String(), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no valid IP found")
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		log.Fatalf("Please provide the master server ip")
+		return
+	}
+	master_ip := os.Args[1]
+	conn, err := grpc.NewClient(master_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Cannot start client : %s", err)
 	}
@@ -163,8 +219,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot start server : %s", err)
 	}
-	port = strconv.Itoa(lis.Addr().(*net.TCPAddr).Port)
+	port := strconv.Itoa(lis.Addr().(*net.TCPAddr).Port)
 	fmt.Println("Client node started on port " + port)
+	ip, err := getPreferredIP()
+	IP = ip + ":" + port
+	if err != nil {
+		log.Fatalf("Error getting local IP: %s", err)
+	}
+	fmt.Println("Client node started on IP " + ip)
 	go server.Serve(lis)
 	upload_file_mutex = sync.Mutex{}
 	answer := -1
@@ -189,7 +251,7 @@ func main() {
 			if name[len(name)-4:] != ".mp4" {
 				name += ".mp4"
 			}
-			go uploadVideo(client_master,name,path)
+			go uploadVideo(client_master, name, path)
 		} else if answer == 2 {
 			fmt.Println("Enter the path of the video file you want to download")
 			var path string
@@ -203,10 +265,10 @@ func main() {
 			if name[len(name)-4:] != ".mp4" {
 				name += ".mp4"
 			}
-			ports := requestVideoDownload(client_master, name, path)
-			log.Println(ports)
-			for _, port := range ports {
-				go downloadVideo(port, name, path)
+			download_ips,nodes := requestVideoDownload(client_master, name, path)
+			log.Println(nodes)
+			for i, ip := range download_ips {
+				go downloadVideo(ip, nodes[i],name, path)
 			}
 		} else {
 			fmt.Println("Invalid input")

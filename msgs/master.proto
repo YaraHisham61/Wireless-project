@@ -1,7 +1,7 @@
 syntax ="proto3";
 option go_package="demo-grpc/master";
 message InitRequest {
-  string port = 1;
+  string IP = 1;
 }
 message InitResponse {
   string message = 1;
@@ -16,10 +16,10 @@ message BeatResponse {
 message UploadRequest {
   string filePath = 1;
   string fileName = 2;
-  string clientPort = 3;
+  string clientIP = 3;
 }
 message UploadResponse {
-  string port = 1;
+  string IP = 1;
   string nodeName = 2;
 }
 message DataNodeUploadFinishedRequest {
@@ -41,10 +41,11 @@ message ClientUploadCheckResponse {
 message DownloadRequest {
   string fileName = 1;
   string filePath = 2;
-  string clientPort = 3;
+  string clientIP = 3;
 }
 message DownloadResponse {
-  repeated string ports = 1;
+  repeated string IPs = 1;
+  repeated string nodeNames = 2;
 }
 service Master {
   rpc InitNode(InitRequest) returns (InitResponse) {}
