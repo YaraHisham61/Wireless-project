@@ -17,12 +17,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-
 var name string
 var client_master master.MasterClient
 var upload_file_mutex sync.Mutex
 var replicate_mutex sync.Mutex
 var IP string
+
 type DataServer struct {
 	data.UnimplementedDataServer
 	currentFile   *os.File
@@ -115,7 +115,7 @@ func (s *DataServer) ReplicateNotify(ctx context.Context, in *data.ReplicateNoti
 		}
 		fmt.Println("File replicated successfully")
 		return &data.ReplicateNotificationStatus{
-			Message: name+": Replication done",
+			Message: name + ": Replication done",
 		}, nil
 	} else {
 		// I am the destination of the data node
@@ -132,7 +132,7 @@ func (s *DataServer) ReplicateNotify(ctx context.Context, in *data.ReplicateNoti
 		s.replicateFile = file
 		fmt.Println("File replication received successfully")
 		return &data.ReplicateNotificationStatus{
-			Message: name+": Replication done",
+			Message: name + ": Replication done",
 		}, nil
 	}
 }
@@ -142,7 +142,7 @@ func (s *DataServer) NodeToNodeReplicate(stream grpc.ClientStreamingServer[data.
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
-			
+
 			return stream.SendAndClose(&data.ReplicateStatus{Message: "File uploaded successfully"})
 		}
 		if err != nil {
@@ -176,6 +176,7 @@ func (s *DataServer) EstablishUploadConnection(ctx context.Context, in *data.Vid
 func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChunk, data.UploadStatus]) error {
 	defer upload_file_mutex.Unlock()
 	defer s.currentFile.Close()
+
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
@@ -185,28 +186,32 @@ func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChu
 				FileName: s.fileName,
 			})
 			if err != nil {
-				log.Fatalf("Error when calling UploadFinished: %s", err)
+				fmt.Printf("Error notifying master of upload completion: %s\n", err)
+				return err
 			}
 			return stream.SendAndClose(&data.UploadStatus{Message: "File uploaded successfully"})
 		}
 		if err != nil {
+			fmt.Printf("Error receiving chunk: %s\n", err)
 			return err
 		}
 		_, writeErr := s.currentFile.Write(chunk.Data)
 		if writeErr != nil {
+			fmt.Printf("Error writing chunk to file: %s\n", writeErr)
 			return writeErr
 		}
 	}
-
 }
 func (s *DataServer) DownloadVideo(in *data.DownloadVideoRequest, stream data.Data_DownloadVideoServer) error {
 	file_path := in.GetFilePath()
 	file_name := in.GetFileName()
 	file, err := os.Open(filepath.Join("./uploads/"+name+"/"+file_path, file_name))
 	if err != nil {
+		fmt.Printf("Error opening file for download: %s\n", err)
 		return err
 	}
 	defer file.Close()
+
 	buffer := make([]byte, 1024)
 	for {
 		n, err := file.Read(buffer)
@@ -214,9 +219,11 @@ func (s *DataServer) DownloadVideo(in *data.DownloadVideoRequest, stream data.Da
 			if err == io.EOF {
 				break
 			}
+			fmt.Printf("Error reading file for download: %s\n", err)
 			return err
 		}
 		if err := stream.Send(&data.VideoChunk{Data: buffer[:n]}); err != nil {
+			fmt.Printf("Error sending chunk during download: %s\n", err)
 			return err
 		}
 	}

@@ -54,18 +54,21 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 	fmt.Println("Connecting to data node with ip : " + ip)
 	data_conn, err_data := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err_data != nil {
-		log.Fatalf("Cannot start client : %s", err_data)
+		fmt.Printf("Error connecting to data node: %s\n", err_data)
+		return
 	}
 	defer data_conn.Close()
 	data_client := data.NewDataClient(data_conn)
 	f, err := os.Open("../" + path + name)
 	if err != nil {
-		log.Fatalf("Error when opening file: %s", err)
+		fmt.Printf("Error opening file: %s\n", err)
+		return
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		log.Fatalf("Error when getting file info: %s", err)
+		fmt.Printf("Error getting file info: %s\n", err)
+		return
 	}
 	//* Connection establishment
 	_, err = data_client.EstablishUploadConnection(context.Background(),
@@ -74,12 +77,15 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 			FileSize: info.Size(),
 		})
 	if err != nil {
-		log.Fatalf("Error when calling EstablishUploadConnection: %s", err)
+		fmt.Printf("Error establishing upload connection: %s\n", err)
+		return
 	}
 	currently_uploading[nodeName+"/"+path+name+".mp4"] = true
 	stream, err := data_client.UploadVideo(context.Background())
 	if err != nil {
-		log.Fatalf("Error when calling UploadVideo: %s", err)
+		fmt.Printf("Error starting upload stream: %s\n", err)
+		delete(currently_uploading, nodeName+"/"+path+name+".mp4")
+		return
 	}
 	buf := make([]byte, 1024*1024)
 	for {
@@ -87,21 +93,27 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 		if err == io.EOF {
 			err = stream.CloseSend()
 			if err != nil {
-				log.Fatalf("Failed to close stream: %v", err)
+				fmt.Printf("Error closing upload stream: %s\n", err)
+				delete(currently_uploading, nodeName+"/"+path+name+".mp4")
+				return
 			}
 			break
 		}
 		if err != nil {
-			log.Fatalf("Failed to read video file: %v", err)
+			fmt.Printf("Error reading file: %s\n", err)
+			delete(currently_uploading, nodeName+"/"+path+name+".mp4")
+			return
 		}
 		err = stream.Send(&data.VideoChunk{Data: buf[:n]})
 		if err != nil {
-			log.Fatalf("Failed to send video chunk: %v", err)
+			fmt.Printf("Error sending chunk: %s\n", err)
+			delete(currently_uploading, nodeName+"/"+path+name+".mp4")
+			return
 		}
 		time.Sleep(time.Millisecond * 100) // Optional throttling
 	}
 }
-func requestVideoDownload(request master.MasterClient, fileName string, filePath string) ([]string,[]string) {
+func requestVideoDownload(request master.MasterClient, fileName string, filePath string) ([]string, []string) {
 	res, err := request.RequestDownload(context.Background(), &master.DownloadRequest{
 		FileName: fileName,
 		FilePath: filePath,
@@ -110,12 +122,13 @@ func requestVideoDownload(request master.MasterClient, fileName string, filePath
 	if err != nil {
 		log.Fatalf("Error when calling RequestDownload: %s", err)
 	}
-	return res.GetIPs(),res.GetNodeNames()
+	return res.GetIPs(), res.GetNodeNames()
 }
-func downloadVideo(ip string,nodeName string ,fileName string, filePath string) {
+func downloadVideo(ip string, nodeName string, fileName string, filePath string) {
 	conn, err := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Cannot start client : %s", err)
+		fmt.Printf("Error connecting to data node %s: %s\n", nodeName, err)
+		return
 	}
 	defer conn.Close()
 	data_client := data.NewDataClient(conn)
@@ -124,13 +137,19 @@ func downloadVideo(ip string,nodeName string ,fileName string, filePath string) 
 		FilePath: filePath,
 	})
 	if err != nil {
-		log.Fatalf("Error when calling DownloadVideo: %s", err)
+		fmt.Printf("Error starting download from node %s: %s\n", nodeName, err)
+		return
 	}
 	path := "../downloads/" + nodeName + "/" + filePath
-	os.MkdirAll(path, os.ModePerm)
+	err = os.MkdirAll(path, os.ModePerm)
+	if err != nil {
+		fmt.Printf("Error creating download directory: %s\n", err)
+		return
+	}
 	file, err := os.Create(path + fileName)
 	if err != nil {
-		log.Fatalf("Error when creating file: %s", err)
+		fmt.Printf("Error creating download file: %s\n", err)
+		return
 	}
 	defer file.Close()
 	for {
@@ -139,14 +158,16 @@ func downloadVideo(ip string,nodeName string ,fileName string, filePath string) 
 			break
 		}
 		if err != nil {
-			log.Fatalf("Error when receiving video chunk: %s", err)
+			fmt.Printf("Error receiving chunk from node %s: %s\n", nodeName, err)
+			return
 		}
 		_, err = file.Write(chunk.Data)
 		if err != nil {
-			log.Fatalf("Error when writing video chunk to file: %s", err)
+			fmt.Printf("Error writing chunk to file: %s\n", err)
+			return
 		}
 	}
-	log.Println("Downloaded file " + fileName + " from node "+nodeName+" with ip: " + ip)
+	log.Println("Downloaded file " + fileName + " from node " + nodeName + " with ip: " + ip)
 }
 func getLocalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
@@ -265,10 +286,10 @@ func main() {
 			if name[len(name)-4:] != ".mp4" {
 				name += ".mp4"
 			}
-			download_ips,nodes := requestVideoDownload(client_master, name, path)
+			download_ips, nodes := requestVideoDownload(client_master, name, path)
 			log.Println(nodes)
 			for i, ip := range download_ips {
-				go downloadVideo(ip, nodes[i],name, path)
+				go downloadVideo(ip, nodes[i], name, path)
 			}
 		} else {
 			fmt.Println("Invalid input")
