@@ -18,15 +18,17 @@ import (
 )
 
 type Node struct {
-	ip     string
+	ip       string
 	currTime time.Time
 }
 type File struct {
 	fileName string
 	filePath string
 }
+
 // Master IP
 var IP string
+
 // map of string as key and pair as value that contain string and time.Time
 var node_life_tracker = make(map[string]Node)
 var wait = sync.WaitGroup{}
@@ -49,6 +51,7 @@ func check_node_life(node_name string) bool {
 type MasterServer struct {
 	master.UnimplementedMasterServer
 }
+
 func getLocalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -72,7 +75,11 @@ func senderReplication(client data.DataClient, f File, receiver_ip string) {
 		Destination: receiver_ip,
 	})
 	if err != nil {
-		log.Fatalf("SenderReplication --> %s", err)
+		fmt.Print("SenderReplication --> %s", err)
+		wait.Done()
+
+		return
+		// fmt.Print("SenderReplication --> %s", err)
 	}
 	fmt.Println("The message returned from SenderReplication --> " + a.Message)
 	wait.Done()
@@ -85,7 +92,7 @@ func receiverReplication(client data.DataClient, f File) {
 		Destination: "",
 	})
 	if err != nil {
-		log.Fatalf("ReceiverReplication --> %s", err)
+		fmt.Print("ReceiverReplication --> %s", err)
 	}
 	fmt.Println("The message returned from ReceiverReplication --> " + a.Message)
 	wait.Done()
@@ -93,7 +100,7 @@ func receiverReplication(client data.DataClient, f File) {
 func notifyMachineDataTransfer(sender_ip string, receiver_ip string, f File) {
 	sen_conn, err := grpc.NewClient(sender_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("CheckReplication -> Error when calling RequestUpload: %s", err)
+		fmt.Print("CheckReplication -> Error when calling RequestUpload: %s", err)
 	}
 	defer sen_conn.Close()
 	data_client := data.NewDataClient(sen_conn)
@@ -101,7 +108,7 @@ func notifyMachineDataTransfer(sender_ip string, receiver_ip string, f File) {
 	go senderReplication(data_client, f, receiver_ip)
 	dest_conn, err := grpc.NewClient(receiver_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("CheckReplication -> Error when calling RequestUpload: %s", err)
+		fmt.Print("CheckReplication -> Error when calling RequestUpload: %s", err)
 	}
 	defer dest_conn.Close()
 	d_client := data.NewDataClient(dest_conn)
@@ -166,7 +173,7 @@ func check_replication() {
 					x1 = i
 				}
 				fmt.Printf("i = %d\n", i)
-				receiver_ip :=  node_life_tracker[nodes_without_file[i]].ip
+				receiver_ip := node_life_tracker[nodes_without_file[i]].ip
 				notifyMachineDataTransfer(source_machine_ip, receiver_ip, file)
 				data_nodes_tracker[nodes_without_file[i]] = append(data_nodes_tracker[nodes_without_file[i]], File{
 					fileName: file.fileName,
@@ -183,7 +190,7 @@ func check_replication() {
 func (s *MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*master.InitResponse, error) {
 	node_name := "Node" + strconv.Itoa(len(node_life_tracker))
 	node_life_tracker[node_name] = Node{
-		ip:     in.GetIP(),
+		ip:       in.GetIP(),
 		currTime: time.Now(),
 	}
 	if data_nodes_tracker[node_name] == nil {
@@ -198,7 +205,7 @@ func (s *MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*maste
 	node_name := in.GetNodeName()
 	log.Printf("Received Heartbeat from %s\n", node_name)
 	node_life_tracker[node_name] = Node{
-		ip:     node_life_tracker[node_name].ip,
+		ip:       node_life_tracker[node_name].ip,
 		currTime: time.Now(),
 	}
 	return &master.BeatResponse{
@@ -210,7 +217,7 @@ func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadReque
 	if users[client_ip] == nil {
 		conn, err := grpc.NewClient(client_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Fatalf("Error when calling RequestUpload: %s", err)
+			fmt.Print("Error when calling RequestUpload: %s", err)
 		}
 		users[client_ip] = user.NewUserClient(conn)
 	}
@@ -221,7 +228,7 @@ func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadReque
 
 			files_tracker[node_name+"/"+in.FilePath+in.FileName] = client_ip
 			return &master.UploadResponse{
-				IP:     node_life_tracker[node_name].ip,
+				IP:       node_life_tracker[node_name].ip,
 				NodeName: node_name,
 			}, nil
 		}
@@ -249,7 +256,7 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 		FileName: file_name,
 	})
 	if err != nil {
-		log.Fatalf("UploadFinished -> Error when calling NotifyUploadFinished: %s", err)
+		fmt.Print("UploadFinished -> Error when calling NotifyUploadFinished: %s", err)
 	}
 	// // The master chooses 2 other nodes to replicate the file transferred
 	// replicate_ports := make([]string, 2)
@@ -272,7 +279,7 @@ func (s *MasterServer) RequestDownload(ctx context.Context, in *master.DownloadR
 	file_name := in.GetFileName()
 	file_path := in.GetFilePath()
 	ports_list := make([]string, 0)
-	names_list := make([]string,0)
+	names_list := make([]string, 0)
 	for node, file := range data_nodes_tracker {
 		if !check_node_life(node) {
 			continue
@@ -280,12 +287,12 @@ func (s *MasterServer) RequestDownload(ctx context.Context, in *master.DownloadR
 		for _, f := range file {
 			if f.fileName == file_name && f.filePath == file_path {
 				ports_list = append(ports_list, node_life_tracker[node].ip)
-				names_list = append(names_list,node)
+				names_list = append(names_list, node)
 			}
 		}
 	}
 	return &master.DownloadResponse{
-		IPs: ports_list,
+		IPs:       ports_list,
 		NodeNames: names_list,
 	}, nil
 }
@@ -326,11 +333,11 @@ func getPreferredIP() (string, error) {
 	return "", fmt.Errorf("no valid IP found")
 }
 func main() {
-	ip,err:=getPreferredIP()
+	ip, err := getPreferredIP()
 	if err != nil {
-		log.Fatalf("Error getting local IP: %s", err)
+		fmt.Print("Error getting local IP: %s", err)
 	}
-	IP = ip+":8080"
+	IP = ip + ":8080"
 	fmt.Println("Master IP: ", IP)
 	server := grpc.NewServer()
 	defer server.Stop()
@@ -338,11 +345,11 @@ func main() {
 	master.RegisterMasterServer(server, &master_server)
 	lis, err := net.Listen("tcp", IP)
 	if err != nil {
-		log.Fatalf("Cannot start server : %s", err)
+		fmt.Print("Cannot start server : %s", err)
 	}
 	go check_replication()
 	err = server.Serve(lis)
 	if err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		fmt.Print("Failed to serve: %v", err)
 	}
 }
