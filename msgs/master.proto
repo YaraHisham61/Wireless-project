@@ -2,6 +2,7 @@ syntax ="proto3";
 option go_package="demo-grpc/master";
 message InitRequest {
   string IP = 1;
+  repeated string ports = 2;
 }
 message InitResponse {
   string message = 1;

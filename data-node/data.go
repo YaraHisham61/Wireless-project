@@ -22,6 +22,7 @@ var client_master master.MasterClient
 var upload_file_mutex sync.Mutex
 var replicate_mutex sync.Mutex
 var IP string
+var ports []string
 
 type DataServer struct {
 	data.UnimplementedDataServer
@@ -56,7 +57,7 @@ func sendHeartbeat(client master.MasterClient) {
 	}
 }
 func initConn() error {
-	response, err := client_master.InitNode(context.Background(), &master.InitRequest{IP: IP})
+	response, err := client_master.InitNode(context.Background(), &master.InitRequest{IP: IP, Ports: ports})
 	if err != nil {
 		// terminate program
 		log.Fatalf("Error when calling InitNode: %s", err)
@@ -266,23 +267,27 @@ func getPreferredIP() (string, error) {
 	return "", fmt.Errorf("no valid IP found")
 }
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("Please provide the port number")
+	// if len(os.Args) < 2 {
+	// 	log.Fatalf("Please provide the port number")
+	// 	return
+	// }
+	if len(os.Args) < 5 {
+		log.Fatalf("Invalid Arguments.")
 		return
 	}
-	if len(os.Args) < 3 {
-		log.Fatalf("Please provide the master server ip")
-		return
-	}
-	port := os.Args[1]
+	ports = make([]string, 0)
+	ports = append(ports, os.Args[1])
+	ports = append(ports, os.Args[2])
+	ports = append(ports, os.Args[3])
 	master_ip := os.Args[2]
 	ip, err := getPreferredIP()
 	if err != nil {
 		log.Fatalf("Error when getting local IP: %s", err)
 		return
 	}
-	IP = ip + ":" + port
+	IP = ip
 	fmt.Println("Data Node IP: ", IP)
+	fmt.Printf("Available ports: [%s, %s, %s]\n", ports[0], ports[1], ports[2])
 	upload_file_mutex = sync.Mutex{}
 	replicate_mutex = sync.Mutex{}
 	conn, err := grpc.NewClient(master_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -295,17 +300,22 @@ func main() {
 	if initConn != nil {
 		return
 	}
-	server := grpc.NewServer()
-	data_server := DataServer{}
-	data.RegisterDataServer(server, &data_server)
-	lis, err := net.Listen("tcp", IP)
-	if err != nil {
-		log.Fatalf("Cannot start server : %s", err)
+	for i := 0; i < 3; i++ {
+		go func(port string) {
+			server := grpc.NewServer()
+			data_server := DataServer{}
+			data.RegisterDataServer(server, &data_server)
+	
+			lis, err := net.Listen("tcp", IP+":"+port)
+			if err != nil {
+				log.Fatalf("Cannot start server on port %s: %v", port, err)
+			}
+			log.Printf("gRPC server listening on %s:%s", IP, port)
+			if err := server.Serve(lis); err != nil {
+				log.Fatalf("Failed to serve on port %s: %v", port, err)
+			}
+		}(ports[i])
 	}
-	defer server.Stop()
-	go sendHeartbeat(client_master)
-	err = server.Serve(lis)
-	if err != nil {
-		log.Fatalf("Failed to serve: %v", err)
-	}
+	// Start the heartbeat goroutine
+	go sendHeartbeat(client_master)	
 }
