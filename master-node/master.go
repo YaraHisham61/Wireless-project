@@ -93,6 +93,7 @@ func receiverReplication(client data.DataClient, f File) {
 	})
 	if err != nil {
 		fmt.Print("ReceiverReplication --> %s", err)
+		return
 	}
 	fmt.Println("The message returned from ReceiverReplication --> " + a.Message)
 	wait.Done()
@@ -101,6 +102,7 @@ func notifyMachineDataTransfer(sender_ip string, receiver_ip string, f File) {
 	sen_conn, err := grpc.NewClient(sender_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		fmt.Print("CheckReplication -> Error when calling RequestUpload: %s", err)
+		return
 	}
 	defer sen_conn.Close()
 	data_client := data.NewDataClient(sen_conn)
@@ -109,6 +111,7 @@ func notifyMachineDataTransfer(sender_ip string, receiver_ip string, f File) {
 	dest_conn, err := grpc.NewClient(receiver_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		fmt.Print("CheckReplication -> Error when calling RequestUpload: %s", err)
+		return
 	}
 	defer dest_conn.Close()
 	d_client := data.NewDataClient(dest_conn)
@@ -218,6 +221,7 @@ func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadReque
 		conn, err := grpc.NewClient(client_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			fmt.Print("Error when calling RequestUpload: %s", err)
+			return nil, err
 		}
 		users[client_ip] = user.NewUserClient(conn)
 	}
@@ -257,6 +261,7 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 	})
 	if err != nil {
 		fmt.Print("UploadFinished -> Error when calling NotifyUploadFinished: %s", err)
+		return nil, err
 	}
 	// // The master chooses 2 other nodes to replicate the file transferred
 	// replicate_ports := make([]string, 2)
@@ -333,9 +338,11 @@ func getPreferredIP() (string, error) {
 	return "", fmt.Errorf("no valid IP found")
 }
 func main() {
+	// rand.Seed(time.Now().UnixNano())
 	ip, err := getPreferredIP()
 	if err != nil {
 		fmt.Print("Error getting local IP: %s", err)
+		return
 	}
 	IP = ip + ":8080"
 	fmt.Println("Master IP: ", IP)
@@ -346,10 +353,12 @@ func main() {
 	lis, err := net.Listen("tcp", IP)
 	if err != nil {
 		fmt.Print("Cannot start server : %s", err)
+		return
 	}
 	go check_replication()
 	err = server.Serve(lis)
 	if err != nil {
 		fmt.Print("Failed to serve: %v", err)
+		return
 	}
 }
