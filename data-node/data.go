@@ -19,15 +19,11 @@ import (
 
 var name string
 var client_master master.MasterClient
-var upload_file_mutex sync.Mutex
 var replicate_mutex sync.Mutex
 var IP string
 
 type DataServer struct {
 	data.UnimplementedDataServer
-	currentFile   *os.File
-	fileName      string
-	filePath      string
 	replicateFile *os.File
 }
 
@@ -156,46 +152,48 @@ func (s *DataServer) NodeToNodeReplicate(stream grpc.ClientStreamingServer[data.
 
 }
 
-func (s *DataServer) EstablishUploadConnection(ctx context.Context, in *data.VideoUploadData) (*data.UploadStatus, error) {
-	// This mutex to prevent multi users from uploading in same time
-	upload_file_mutex.Lock()
-	path := filepath.Join("./uploads/"+name+"/"+in.GetFilePath(), in.GetFileName())
-	file, err := os.Create(path)
-	if err != nil {
-		e := os.MkdirAll("./uploads/"+name+"/"+in.GetFilePath(), os.ModePerm)
-		if e != nil {
-			log.Fatalf("Error when creating file: %s", err)
-		}
-		file, _ = os.Create(path)
-	}
-	s.currentFile = file
-	s.fileName = in.GetFileName()
-	s.filePath = in.GetFilePath()
-	return &data.UploadStatus{Message: "File initialized successfully in location " + path}, nil
-}
-func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChunk, data.UploadStatus]) error {
-	defer upload_file_mutex.Unlock()
-	defer s.currentFile.Close()
-
+func (s *DataServer) UploadVideo(stream data.Data_UploadVideoServer) error {
+	created := false
+	var file *os.File
+	var filePath string
+	var fileName string
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
 			_, err := client_master.UploadFinished(context.Background(), &master.DataNodeUploadFinishedRequest{
 				NodeName: name,
-				FilePath: s.filePath,
-				FileName: s.fileName,
+				FilePath: filePath,
+				FileName: fileName,
 			})
 			if err != nil {
 				fmt.Printf("Error notifying master of upload completion: %s\n", err)
 				return err
 			}
-			return stream.SendAndClose(&data.UploadStatus{Message: "File uploaded successfully"})
+			log.Println("File uploaded successfully from user")
+			return stream.SendAndClose(
+				&data.UploadStatus{
+					Message: "Finished",
+				})
 		}
 		if err != nil {
 			fmt.Printf("Error receiving chunk: %s\n", err)
 			return err
 		}
-		_, writeErr := s.currentFile.Write(chunk.Data)
+		if !created {
+			filePath = chunk.FilePath
+			fileName = chunk.FileName
+			path := filepath.Join("./uploads/"+name+"/"+filePath, fileName)
+			file, err = os.Create(path)
+			if err != nil {
+				e := os.MkdirAll("./uploads/"+name+"/"+filePath, os.ModePerm)
+				if e != nil {
+					log.Fatalf("Error when creating file: %s", err)
+				}
+				file, _ = os.Create(path)
+			}
+			created = true
+		}
+		_, writeErr := file.Write(chunk.Data)
 		if writeErr != nil {
 			fmt.Printf("Error writing chunk to file: %s\n", writeErr)
 			return writeErr
@@ -221,12 +219,12 @@ func (s *DataServer) DownloadVideo(in *data.DownloadVideoRequest, stream data.Da
 		log.Printf("Error getting file info: %s\n", err)
 		return err
 	}
-	file_size  := info.Size()
-	part_size := file_size  / int64(total_divides)
+	file_size := info.Size()
+	part_size := file_size / int64(total_divides)
 	offset := part_size * int64(divide_number)
 	// Handle undivisble part
 	if divide_number == total_divides-1 {
-		part_size = file_size  - offset
+		part_size = file_size - offset
 	}
 	// Seek file to offset to start from it
 	_, err = file.Seek(offset, io.SeekStart)
@@ -314,7 +312,6 @@ func main() {
 	}
 	IP = ip + ":" + port
 	fmt.Println("Data Node IP: ", IP)
-	upload_file_mutex = sync.Mutex{}
 	replicate_mutex = sync.Mutex{}
 	conn, err := grpc.NewClient(master_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

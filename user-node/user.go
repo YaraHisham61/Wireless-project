@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	// "time"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -65,28 +67,13 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 		return
 	}
 	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		fmt.Printf("Error getting file info: %s\n", err)
-		return
-	}
-	//* Connection establishment
-	_, err = data_client.EstablishUploadConnection(context.Background(),
-		&data.VideoUploadData{FilePath: path,
-			FileName: name,
-			FileSize: info.Size(),
-		})
-	if err != nil {
-		fmt.Printf("Error establishing upload connection: %s\n", err)
-		return
-	}
-	currently_uploading[nodeName+"/"+path+name+".mp4"] = true
+
 	stream, err := data_client.UploadVideo(context.Background())
 	if err != nil {
 		fmt.Printf("Error starting upload stream: %s\n", err)
-		delete(currently_uploading, nodeName+"/"+path+name+".mp4")
 		return
 	}
+	currently_uploading[nodeName+"/"+path+name+".mp4"] = true
 	buf := make([]byte, 1024*1024)
 	for {
 		n, err := f.Read(buf)
@@ -104,13 +91,17 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 			delete(currently_uploading, nodeName+"/"+path+name+".mp4")
 			return
 		}
-		err = stream.Send(&data.VideoChunk{Data: buf[:n]})
+		err = stream.Send(&data.UploadVideoChunk{
+			FilePath: path,
+			FileName: name,
+			Data:     buf[:n]})
 		if err != nil {
 			fmt.Printf("Error sending chunk: %s\n", err)
 			delete(currently_uploading, nodeName+"/"+path+name+".mp4")
 			return
 		}
 		time.Sleep(time.Millisecond * 100) // Optional throttling
+		// log.Println("Sending.....")
 	}
 }
 func requestVideoDownload(request master.MasterClient, fileName string, filePath string) ([]string, []string) {
@@ -124,7 +115,7 @@ func requestVideoDownload(request master.MasterClient, fileName string, filePath
 	}
 	return res.GetIPs(), res.GetNodeNames()
 }
-func downloadVideo(ip string, nodeName string, fileName string, filePath string, total_divides int64, divide_number int64, file *os.File) (int,string) {
+func downloadVideo(ip string, nodeName string, fileName string, filePath string, total_divides int64, divide_number int64, file *os.File) (int, string) {
 	conn, err := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return 1, "Error connecting to data node " + nodeName + ": " + err.Error()
@@ -138,21 +129,22 @@ func downloadVideo(ip string, nodeName string, fileName string, filePath string,
 		DivideNumber: divide_number,
 	})
 	if err != nil {
-		return 1,"Error starting download stream from node " + nodeName + ": " + err.Error()
+		return 1, "Error starting download stream from node " + nodeName + ":" + err.Error()
 	}
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
-			return 0,""
+			return 0, ""
 		}
 		if err != nil {
-			return 1,"Error receiving chunk from node " + nodeName + ": " + err.Error()
+			return 1, "Error receiving chunk from node " + nodeName + ":" + err.Error()
 		}
 		_, err = file.Write(chunk.GetData())
 		if err != nil {
-			return 1,"Error writing chunk to file: " + err.Error()
+			return 1, "Error writing chunk to file: " + err.Error()
 		}
-		time.Sleep(time.Millisecond * 100) 
+		time.Sleep(time.Millisecond * 100)
+		// log.Println("Receiving.....")
 	}
 }
 func getPreferredIP() (string, error) {
@@ -277,7 +269,7 @@ func main() {
 						log.Printf("Error downloading video from node %s: %s\n", nodes[i], msg)
 						break
 					} else {
-						log.Printf("Download completed successfully from %s for part %d\n", nodes[i],i)
+						log.Printf("Download completed successfully from %s for part %d\n", nodes[i], i)
 					}
 				}
 				file.Close()

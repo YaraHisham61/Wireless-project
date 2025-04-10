@@ -78,7 +78,7 @@ func receiverReplication(client data.DataClient, f File) {
 		Destination: "",
 	})
 	if err != nil {
-		fmt.Print("ReceiverReplication --> %s", err)
+		fmt.Printf("ReceiverReplication --> %s\n", err)
 		return
 	}
 	fmt.Println("The message returned from ReceiverReplication --> " + a.Message)
@@ -87,7 +87,7 @@ func receiverReplication(client data.DataClient, f File) {
 func notifyMachineDataTransfer(sender_ip string, receiver_ip string, f File) {
 	sen_conn, err := grpc.NewClient(sender_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Print("CheckReplication -> Error when calling RequestUpload: %s", err)
+		fmt.Printf("CheckReplication -> Error when calling RequestUpload: %s\n", err)
 		return
 	}
 	defer sen_conn.Close()
@@ -96,7 +96,7 @@ func notifyMachineDataTransfer(sender_ip string, receiver_ip string, f File) {
 	go senderReplication(data_client, f, receiver_ip)
 	dest_conn, err := grpc.NewClient(receiver_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Print("CheckReplication -> Error when calling RequestUpload: %s", err)
+		fmt.Printf("CheckReplication -> Error when calling RequestUpload: %s\n", err)
 		return
 	}
 	defer dest_conn.Close()
@@ -206,7 +206,7 @@ func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadReque
 	if users[client_ip] == nil {
 		conn, err := grpc.NewClient(client_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			fmt.Print("Error when calling RequestUpload: %s", err)
+			fmt.Printf("Error when calling RequestUpload: %s\n", err)
 			return nil, err
 		}
 		users[client_ip] = user.NewUserClient(conn)
@@ -215,7 +215,6 @@ func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadReque
 		i := rand.Intn(len(node_life_tracker))
 		node_name := "Node" + strconv.Itoa(i)
 		if check_node_life(node_name) {
-
 			files_tracker[node_name+"/"+in.FilePath+in.FileName] = client_ip
 			return &master.UploadResponse{
 				IP:       node_life_tracker[node_name].ip,
@@ -238,6 +237,7 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 	}
 	data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
 	original_file_source[ff] = in.NodeName
+	
 	user_ip := files_tracker[in.NodeName+"/"+file_path+file_name]
 	delete(files_tracker, in.NodeName+"/"+file_path+file_name)
 	// The master will notify the client with a successful message
@@ -246,7 +246,7 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 		FileName: file_name,
 	})
 	if err != nil {
-		fmt.Print("UploadFinished -> Error when calling NotifyUploadFinished: %s", err)
+		fmt.Printf("UploadFinished -> Error when calling NotifyUploadFinished: %s\n", err)
 		return nil, err
 	}
 	// // The master chooses 2 other nodes to replicate the file transferred
@@ -327,7 +327,7 @@ func main() {
 	// rand.Seed(time.Now().UnixNano())
 	ip, err := getPreferredIP()
 	if err != nil {
-		fmt.Print("Error getting local IP: %s", err)
+		fmt.Printf("Error getting local IP: %s\n", err)
 		return
 	}
 	IP = ip + ":8080"
@@ -338,13 +338,13 @@ func main() {
 	master.RegisterMasterServer(server, &master_server)
 	lis, err := net.Listen("tcp", IP)
 	if err != nil {
-		fmt.Print("Cannot start server : %s", err)
+		fmt.Printf("Cannot start server : %s\n", err)
 		return
 	}
 	go check_replication()
 	err = server.Serve(lis)
 	if err != nil {
-		fmt.Print("Failed to serve: %v", err)
+		fmt.Printf("Failed to serve: %v\n", err)
 		return
 	}
 }

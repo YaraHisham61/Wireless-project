@@ -19,19 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Data_UploadVideo_FullMethodName               = "/video.Data/UploadVideo"
-	Data_EstablishUploadConnection_FullMethodName = "/video.Data/EstablishUploadConnection"
-	Data_DownloadVideo_FullMethodName             = "/video.Data/DownloadVideo"
-	Data_ReplicateNotify_FullMethodName           = "/video.Data/ReplicateNotify"
-	Data_NodeToNodeReplicate_FullMethodName       = "/video.Data/NodeToNodeReplicate"
+	Data_UploadVideo_FullMethodName         = "/video.Data/UploadVideo"
+	Data_DownloadVideo_FullMethodName       = "/video.Data/DownloadVideo"
+	Data_ReplicateNotify_FullMethodName     = "/video.Data/ReplicateNotify"
+	Data_NodeToNodeReplicate_FullMethodName = "/video.Data/NodeToNodeReplicate"
 )
 
 // DataClient is the client API for Data service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DataClient interface {
-	UploadVideo(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, UploadStatus], error)
-	EstablishUploadConnection(ctx context.Context, in *VideoUploadData, opts ...grpc.CallOption) (*UploadStatus, error)
+	UploadVideo(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadVideoChunk, UploadStatus], error)
 	DownloadVideo(ctx context.Context, in *DownloadVideoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VideoChunk], error)
 	ReplicateNotify(ctx context.Context, in *ReplicateNotification, opts ...grpc.CallOption) (*ReplicateNotificationStatus, error)
 	NodeToNodeReplicate(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, ReplicateStatus], error)
@@ -45,28 +43,18 @@ func NewDataClient(cc grpc.ClientConnInterface) DataClient {
 	return &dataClient{cc}
 }
 
-func (c *dataClient) UploadVideo(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VideoChunk, UploadStatus], error) {
+func (c *dataClient) UploadVideo(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadVideoChunk, UploadStatus], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Data_ServiceDesc.Streams[0], Data_UploadVideo_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[VideoChunk, UploadStatus]{ClientStream: stream}
+	x := &grpc.GenericClientStream[UploadVideoChunk, UploadStatus]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Data_UploadVideoClient = grpc.ClientStreamingClient[VideoChunk, UploadStatus]
-
-func (c *dataClient) EstablishUploadConnection(ctx context.Context, in *VideoUploadData, opts ...grpc.CallOption) (*UploadStatus, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UploadStatus)
-	err := c.cc.Invoke(ctx, Data_EstablishUploadConnection_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
+type Data_UploadVideoClient = grpc.ClientStreamingClient[UploadVideoChunk, UploadStatus]
 
 func (c *dataClient) DownloadVideo(ctx context.Context, in *DownloadVideoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VideoChunk], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -114,8 +102,7 @@ type Data_NodeToNodeReplicateClient = grpc.ClientStreamingClient[VideoChunk, Rep
 // All implementations must embed UnimplementedDataServer
 // for forward compatibility.
 type DataServer interface {
-	UploadVideo(grpc.ClientStreamingServer[VideoChunk, UploadStatus]) error
-	EstablishUploadConnection(context.Context, *VideoUploadData) (*UploadStatus, error)
+	UploadVideo(grpc.ClientStreamingServer[UploadVideoChunk, UploadStatus]) error
 	DownloadVideo(*DownloadVideoRequest, grpc.ServerStreamingServer[VideoChunk]) error
 	ReplicateNotify(context.Context, *ReplicateNotification) (*ReplicateNotificationStatus, error)
 	NodeToNodeReplicate(grpc.ClientStreamingServer[VideoChunk, ReplicateStatus]) error
@@ -129,11 +116,8 @@ type DataServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDataServer struct{}
 
-func (UnimplementedDataServer) UploadVideo(grpc.ClientStreamingServer[VideoChunk, UploadStatus]) error {
+func (UnimplementedDataServer) UploadVideo(grpc.ClientStreamingServer[UploadVideoChunk, UploadStatus]) error {
 	return status.Errorf(codes.Unimplemented, "method UploadVideo not implemented")
-}
-func (UnimplementedDataServer) EstablishUploadConnection(context.Context, *VideoUploadData) (*UploadStatus, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method EstablishUploadConnection not implemented")
 }
 func (UnimplementedDataServer) DownloadVideo(*DownloadVideoRequest, grpc.ServerStreamingServer[VideoChunk]) error {
 	return status.Errorf(codes.Unimplemented, "method DownloadVideo not implemented")
@@ -166,29 +150,11 @@ func RegisterDataServer(s grpc.ServiceRegistrar, srv DataServer) {
 }
 
 func _Data_UploadVideo_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(DataServer).UploadVideo(&grpc.GenericServerStream[VideoChunk, UploadStatus]{ServerStream: stream})
+	return srv.(DataServer).UploadVideo(&grpc.GenericServerStream[UploadVideoChunk, UploadStatus]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Data_UploadVideoServer = grpc.ClientStreamingServer[VideoChunk, UploadStatus]
-
-func _Data_EstablishUploadConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(VideoUploadData)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DataServer).EstablishUploadConnection(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Data_EstablishUploadConnection_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataServer).EstablishUploadConnection(ctx, req.(*VideoUploadData))
-	}
-	return interceptor(ctx, in, info, handler)
-}
+type Data_UploadVideoServer = grpc.ClientStreamingServer[UploadVideoChunk, UploadStatus]
 
 func _Data_DownloadVideo_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(DownloadVideoRequest)
@@ -233,10 +199,6 @@ var Data_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "video.Data",
 	HandlerType: (*DataServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "EstablishUploadConnection",
-			Handler:    _Data_EstablishUploadConnection_Handler,
-		},
 		{
 			MethodName: "ReplicateNotify",
 			Handler:    _Data_ReplicateNotify_Handler,

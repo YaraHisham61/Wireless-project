@@ -7,11 +7,13 @@ message VideoChunk {
 message UploadStatus {
     string message = 1;
 }
-
-message VideoUploadData {
+message UploadVideoChunk{
     string fileName = 1;
     string filePath = 2;
-    int64 fileSize = 3;
+    bytes data=3;
+}
+message VideoUploadData {
+    
 }
 message DownloadVideoRequest {
     string fileName = 1;
@@ -35,8 +37,7 @@ message ReplicateNotificationStatus{
 string message =1;
 }
 service Data {
-    rpc UploadVideo(stream VideoChunk) returns (UploadStatus);
-    rpc EstablishUploadConnection(VideoUploadData) returns (UploadStatus);
+    rpc UploadVideo(stream UploadVideoChunk) returns (UploadStatus);
     rpc DownloadVideo(DownloadVideoRequest) returns (stream VideoChunk);
     rpc ReplicateNotify(ReplicateNotification) returns (ReplicateNotificationStatus);
     rpc NodeToNodeReplicate(stream VideoChunk) returns (ReplicateStatus);
