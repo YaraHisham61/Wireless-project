@@ -44,12 +44,13 @@ func getDataNodePort(request master.MasterClient, fileName string, filePath stri
 	}
 	data_node_ip := res.IP
 	data_node_name := res.NodeName
+	log.Println("Data node " + data_node_name + " with ip " + data_node_ip + " selected for upload")
 	return data_node_ip, data_node_name
 }
 func uploadVideo(client_master master.MasterClient, name string, path string) {
 	upload_file_mutex.Lock()
 	defer upload_file_mutex.Unlock()
-
+	log.Println("Uploading file " + name + " to path " + path)
 	ip, nodeName := getDataNodePort(client_master, name, path)
 	fmt.Println("Connecting to data node with ip : " + ip)
 	data_conn, err_data := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))

@@ -279,7 +279,7 @@ func main() {
 	ports = append(ports, os.Args[1])
 	ports = append(ports, os.Args[2])
 	ports = append(ports, os.Args[3])
-	master_ip := os.Args[2]
+	master_ip := os.Args[4]
 	ip, err := getPreferredIP()
 	if err != nil {
 		log.Fatalf("Error when getting local IP: %s", err)
@@ -305,7 +305,6 @@ func main() {
 			server := grpc.NewServer()
 			data_server := DataServer{}
 			data.RegisterDataServer(server, &data_server)
-	
 			lis, err := net.Listen("tcp", IP+":"+port)
 			if err != nil {
 				log.Fatalf("Cannot start server on port %s: %v", port, err)
@@ -316,6 +315,6 @@ func main() {
 			}
 		}(ports[i])
 	}
-	// Start the heartbeat goroutine
 	go sendHeartbeat(client_master)	
+	for{}
 }

@@ -26,7 +26,7 @@ type File struct {
 	fileName string
 	filePath string
 }
-
+var life_mutex = sync.Mutex{}
 // Master IP
 var IP string
 
@@ -44,9 +44,12 @@ var original_file_source = make(map[File]string)
 // The map will contain node_name + file path + name = node_ip
 var files_tracker = make(map[string]string)
 var port_tracker = make(map[string]string)
+
 // Check if the node is still alive and this by checking if it exceeds 1 second as threshold
 // If it exceeds threshold, then the node is considered dead
 func check_node_life(node_name string) bool {
+	life_mutex.Lock()
+	defer life_mutex.Unlock()
 	return time.Since(node_life_tracker[node_name].currTime) <= 1*time.Second
 }
 
@@ -110,14 +113,7 @@ func check_replication() {
 	for {
 		time.Sleep(10000 * time.Millisecond)
 		fmt.Println("============ Check Replication Started ===============")
-		// for dn, files := range data_nodes_tracker {
-		// 	fmt.Println("Data Node = ", dn)
-		// 	fmt.Print("Files = [")
-		// 	for _, f := range files {
-		// 		fmt.Printf("\nFile Name = %s, File Path = %s", f.fileName, f.filePath)
-		// 	}
-		// 	fmt.Println("]")
-		// }
+
 		for file, source_machine := range original_file_source {
 			if !check_node_life(source_machine) {
 				continue
@@ -190,7 +186,7 @@ func (s *MasterServer) InitNode(ctx context.Context, in *master.InitRequest) (*m
 	for _, port := range in.GetPorts() {
 		availablePorts[in.IP+":"+port] = true
 	}
-	log.Printf("New node %s connected with ip : %s", node_name, in.GetIP())
+	log.Printf("Node %s is initialized with IP %s with ports [%s, %s, %s]\n", node_name, in.GetIP(), in.GetPorts()[0], in.GetPorts()[1], in.GetPorts()[2])
 	return &master.InitResponse{
 		Message: node_name,
 	}, nil
@@ -207,6 +203,8 @@ func (s *MasterServer) Beat(ctx context.Context, in *master.BeatRequest) (*maste
 	}, nil
 }
 func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadRequest) (*master.UploadResponse, error) {
+	life_mutex.Lock()
+	defer life_mutex.Unlock()
 	client_ip := in.GetClientIP()
 	if users[client_ip] == nil {
 		conn, err := grpc.NewClient(client_ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -223,9 +221,9 @@ func (s *MasterServer) RequestUpload(ctx context.Context, in *master.UploadReque
 			sendIP := node_life_tracker[node_name].ip
 			found := false
 			for _, port := range node_life_tracker[node_name].ports {
-				if availablePorts[node_life_tracker[node_name].ip + ":" + port] {
+				if availablePorts[node_life_tracker[node_name].ip+":"+port] {
 					found = true
-					availablePorts[node_life_tracker[node_name].ip + ":" + port] = false
+					availablePorts[node_life_tracker[node_name].ip+":"+port] = false
 					sendIP = node_life_tracker[node_name].ip + ":" + port
 					break
 				}
