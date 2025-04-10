@@ -205,28 +205,59 @@ func (s *DataServer) UploadVideo(stream grpc.ClientStreamingServer[data.VideoChu
 func (s *DataServer) DownloadVideo(in *data.DownloadVideoRequest, stream data.Data_DownloadVideoServer) error {
 	file_path := in.GetFilePath()
 	file_name := in.GetFileName()
-	file, err := os.Open(filepath.Join("./uploads/"+name+"/"+file_path, file_name))
+	total_divides := in.GetTotalDivides()
+	divide_number := in.GetDivideNumber()
+	fullPath := filepath.Join("./uploads/"+name+"/"+file_path, file_name)
+	file, err := os.Open(fullPath)
 	if err != nil {
-		fmt.Printf("Error opening file for download: %s\n", err)
+		log.Printf("Error opening file for download: %s\n", err)
 		return err
 	}
 	defer file.Close()
 
-	buffer := make([]byte, 1024)
-	for {
-		n, err := file.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Printf("Error reading file for download: %s\n", err)
-			return err
-		}
-		if err := stream.Send(&data.VideoChunk{Data: buffer[:n]}); err != nil {
-			fmt.Printf("Error sending chunk during download: %s\n", err)
-			return err
-		}
+	// Get file size
+	info, err := file.Stat()
+	if err != nil {
+		log.Printf("Error getting file info: %s\n", err)
+		return err
 	}
+	file_size  := info.Size()
+	part_size := file_size  / int64(total_divides)
+	offset := part_size * int64(divide_number)
+	// Handle undivisble part
+	if divide_number == total_divides-1 {
+		part_size = file_size  - offset
+	}
+	// Seek file to offset to start from it
+	_, err = file.Seek(offset, io.SeekStart)
+	if err != nil {
+		log.Printf("Error seeking file: %s\n", err)
+		return err
+	}
+	buffer := make([]byte, 1024*1024)
+	remaining := part_size
+	for remaining > 0 {
+		length := int64(len(buffer))
+		if remaining < length {
+			length = remaining
+		}
+		n, err := file.Read(buffer[:length])
+		if err != nil && err != io.EOF {
+			log.Printf("Error reading file: %s\n", err)
+			return err
+		}
+		if n == 0 {
+			break
+		}
+		err = stream.Send(&data.VideoChunk{Data: buffer[:n]})
+		if err != nil {
+			log.Printf("Error sending chunk: %s\n", err)
+			return err
+		}
+		remaining -= int64(n)
+	}
+
+	log.Printf("Divide %d of video %s sent successfully.\n", divide_number, file_path+file_name)
 	return nil
 }
 func getPreferredIP() (string, error) {

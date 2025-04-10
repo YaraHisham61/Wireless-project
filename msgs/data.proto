@@ -16,6 +16,8 @@ message VideoUploadData {
 message DownloadVideoRequest {
     string fileName = 1;
     string filePath = 2;
+    int64 totalDivides = 3;
+    int64 divideNumber = 4;
 }
 message ReplicateNotification{
     string fileName = 1;

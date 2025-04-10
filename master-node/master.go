@@ -52,21 +52,7 @@ type MasterServer struct {
 	master.UnimplementedMasterServer
 }
 
-func getLocalIP() (string, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return "", err
-	}
 
-	for _, addr := range addrs {
-		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-			if ipNet.IP.To4() != nil { // IPv4 only
-				return ipNet.IP.String(), nil
-			}
-		}
-	}
-	return "", fmt.Errorf("no local IP found")
-}
 func senderReplication(client data.DataClient, f File, receiver_ip string) {
 	a, err := client.ReplicateNotify(context.Background(), &data.ReplicateNotification{
 		FileName:    f.fileName,
@@ -75,7 +61,7 @@ func senderReplication(client data.DataClient, f File, receiver_ip string) {
 		Destination: receiver_ip,
 	})
 	if err != nil {
-		fmt.Print("SenderReplication --> %s", err)
+		log.Printf("SenderReplication --> %s", err)
 		wait.Done()
 
 		return

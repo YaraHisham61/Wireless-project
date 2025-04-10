@@ -124,65 +124,36 @@ func requestVideoDownload(request master.MasterClient, fileName string, filePath
 	}
 	return res.GetIPs(), res.GetNodeNames()
 }
-func downloadVideo(ip string, nodeName string, fileName string, filePath string) {
+func downloadVideo(ip string, nodeName string, fileName string, filePath string, total_divides int64, divide_number int64, file *os.File) (int,string) {
 	conn, err := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Printf("Error connecting to data node %s: %s\n", nodeName, err)
-		return
+		return 1, "Error connecting to data node " + nodeName + ": " + err.Error()
 	}
 	defer conn.Close()
 	data_client := data.NewDataClient(conn)
 	stream, err := data_client.DownloadVideo(context.Background(), &data.DownloadVideoRequest{
-		FileName: fileName,
-		FilePath: filePath,
+		FileName:     fileName,
+		FilePath:     filePath,
+		TotalDivides: total_divides,
+		DivideNumber: divide_number,
 	})
 	if err != nil {
-		fmt.Printf("Error starting download from node %s: %s\n", nodeName, err)
-		return
+		return 1,"Error starting download stream from node " + nodeName + ": " + err.Error()
 	}
-	path := "../downloads/" + nodeName + "/" + filePath
-	err = os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-		fmt.Printf("Error creating download directory: %s\n", err)
-		return
-	}
-	file, err := os.Create(path + fileName)
-	if err != nil {
-		fmt.Printf("Error creating download file: %s\n", err)
-		return
-	}
-	defer file.Close()
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
-			break
+			return 0,""
 		}
 		if err != nil {
-			fmt.Printf("Error receiving chunk from node %s: %s\n", nodeName, err)
-			return
+			return 1,"Error receiving chunk from node " + nodeName + ": " + err.Error()
 		}
-		_, err = file.Write(chunk.Data)
+		_, err = file.Write(chunk.GetData())
 		if err != nil {
-			fmt.Printf("Error writing chunk to file: %s\n", err)
-			return
+			return 1,"Error writing chunk to file: " + err.Error()
 		}
+		time.Sleep(time.Millisecond * 100) 
 	}
-	log.Println("Downloaded file " + fileName + " from node " + nodeName + " with ip: " + ip)
-}
-func getLocalIP() (string, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return "", err
-	}
-
-	for _, addr := range addrs {
-		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-			if ipNet.IP.To4() != nil { // IPv4 only
-				return ipNet.IP.String(), nil
-			}
-		}
-	}
-	return "", fmt.Errorf("no local IP found")
 }
 func getPreferredIP() (string, error) {
 	interfaces, err := net.Interfaces()
@@ -269,7 +240,7 @@ func main() {
 			if path[len(path)-1:] != "/" {
 				path += "/"
 			}
-			if name[len(name)-4:] != ".mp4" {
+			if len(name) < 5 || name[len(name)-4:] != ".mp4" {
 				name += ".mp4"
 			}
 			go uploadVideo(client_master, name, path)
@@ -283,14 +254,34 @@ func main() {
 			if path[len(path)-1:] != "/" {
 				path += "/"
 			}
-			if name[len(name)-4:] != ".mp4" {
+			if len(name) < 5 || name[len(name)-4:] != ".mp4" {
 				name += ".mp4"
 			}
 			download_ips, nodes := requestVideoDownload(client_master, name, path)
 			log.Println(nodes)
-			for i, ip := range download_ips {
-				go downloadVideo(ip, nodes[i], name, path)
+			local_path := "../downloads/" + path
+			err = os.MkdirAll(local_path, os.ModePerm)
+			if err != nil {
+				fmt.Printf("Error creating download directory: %s\n", err)
+				return
 			}
+			file, err := os.Create(local_path + name)
+			if err != nil {
+				fmt.Printf("Error creating download file: %s\n", err)
+				return
+			}
+			go func() {
+				for i, ip := range download_ips {
+					num, msg := downloadVideo(ip, nodes[i], name, path, int64(len(download_ips)), int64(i), file)
+					if num == 1 {
+						log.Printf("Error downloading video from node %s: %s\n", nodes[i], msg)
+						break
+					} else {
+						log.Printf("Download completed successfully from %s for part %d\n", nodes[i],i)
+					}
+				}
+				file.Close()
+			}()
 		} else {
 			fmt.Println("Invalid input")
 		}
