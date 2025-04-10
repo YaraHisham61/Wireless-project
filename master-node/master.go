@@ -52,7 +52,14 @@ type MasterServer struct {
 	master.UnimplementedMasterServer
 }
 
-
+func notInList(item File, list []File) bool {
+    for _, v := range list {
+        if v == item {
+            return false // item is in the list
+        }
+    }
+    return true // item is not in the list
+}
 func senderReplication(client data.DataClient, f File, receiver_ip string) {
 	a, err := client.ReplicateNotify(context.Background(), &data.ReplicateNotification{
 		FileName:    f.fileName,
@@ -235,7 +242,9 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 		fileName: file_name,
 		filePath: file_path,
 	}
-	data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
+	if notInList(ff,data_nodes_tracker[in.NodeName]){
+		data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
+	}
 	original_file_source[ff] = in.NodeName
 	
 	user_ip := files_tracker[in.NodeName+"/"+file_path+file_name]
