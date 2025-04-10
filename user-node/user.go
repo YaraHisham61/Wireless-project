@@ -115,10 +115,26 @@ func requestVideoDownload(request master.MasterClient, fileName string, filePath
 	}
 	return res.GetIPs(), res.GetNodeNames()
 }
-func downloadVideo(ip string, nodeName string, fileName string, filePath string, total_divides int64, divide_number int64, file *os.File) (int, string) {
+func downloadVideo(ip string, nodeName string, fileName string, filePath string, total_divides int64, divide_number int64, ctx context.Context, cancel context.CancelFunc, wait *sync.WaitGroup) {
+	defer wait.Done()
+	local_path := "../temp/" + nodeName + "/" + filePath
+	err := os.MkdirAll(local_path, os.ModePerm)
+	if err != nil {
+		fmt.Printf("Error creating Temp directory: %s\n", err)
+		return
+	}
+	file, err := os.Create(local_path + fileName)
+	if err != nil {
+		fmt.Printf("Error creating temp download file: %s\n", err)
+		return
+	}
+	defer file.Close()
 	conn, err := grpc.NewClient(ip, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return 1, "Error connecting to data node " + nodeName + ": " + err.Error()
+
+		log.Printf("Error connecting to data node %s: %s\n", nodeName, err)
+		cancel()
+		return
 	}
 	defer conn.Close()
 	data_client := data.NewDataClient(conn)
@@ -129,22 +145,73 @@ func downloadVideo(ip string, nodeName string, fileName string, filePath string,
 		DivideNumber: divide_number,
 	})
 	if err != nil {
-		return 1, "Error starting download stream from node " + nodeName + ":" + err.Error()
+		log.Printf("Error starting download stream from node %s: %s\n", nodeName, err)
+		cancel()
+		return
 	}
 	for {
-		chunk, err := stream.Recv()
-		if err == io.EOF {
-			return 0, ""
+		select {
+		case <-ctx.Done():
+			log.Println("Download cancelled for " + fileName + " from " + nodeName)
+			cancel()
+			return
+
+		default:
+			chunk, err := stream.Recv()
+			if err == io.EOF {
+				log.Printf("Download from node %s finished successfully\n", nodeName)
+				return
+			}
+			if err != nil {
+				log.Printf("Error receiving chunk from node %s: %s\n", nodeName, err)
+				cancel()
+				return
+			}
+			_, err = file.Write(chunk.GetData())
+			if err != nil {
+				log.Printf("Error writing chunk to file: %s\n", err)
+				cancel()
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+			// log.Println("Receiving.....")
 		}
+	}
+}
+func mergeFiles(filePath string, fileName string, nodes []string) {
+	local_path := "../downloads/" + filePath
+	err := os.MkdirAll(local_path, os.ModePerm)
+	if err != nil {
+		fmt.Printf("Error creating download directory: %s\n", err)
+		return
+	}
+	file, err := os.Create(local_path + fileName)
+	if err != nil {
+		fmt.Printf("Error creating download file: %s\n", err)
+		return
+	}
+	defer file.Close()
+	for _, node := range nodes {
+		fullPath := "../temp/" + node + "/" + filePath + fileName
+		temp_file, err := os.Open(fullPath)
 		if err != nil {
-			return 1, "Error receiving chunk from node " + nodeName + ":" + err.Error()
+			fmt.Printf("Error opening temp file: %s\n", err)
+			return
 		}
-		_, err = file.Write(chunk.GetData())
-		if err != nil {
-			return 1, "Error writing chunk to file: " + err.Error()
+		defer temp_file.Close()
+		buf := make([]byte, 1024*1024)
+		for {
+			n, err := temp_file.Read(buf)
+			if err == io.EOF {
+				os.Remove(fullPath)
+				break
+			}
+			if err != nil {
+				fmt.Printf("Error reading temp file: %s\n", err)
+				return
+			}
+			file.Write(buf[:n])
 		}
-		time.Sleep(time.Millisecond * 100)
-		// log.Println("Receiving.....")
 	}
 }
 func getPreferredIP() (string, error) {
@@ -263,15 +330,20 @@ func main() {
 				return
 			}
 			go func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel() // Ensure cancel is called to avoid context leak
+				wait := sync.WaitGroup{}
+				wait.Add(len(download_ips))
 				for i, ip := range download_ips {
-					num, msg := downloadVideo(ip, nodes[i], name, path, int64(len(download_ips)), int64(i), file)
-					if num == 1 {
-						log.Printf("Error downloading video from node %s: %s\n", nodes[i], msg)
-						break
-					} else {
-						log.Printf("Download completed successfully from %s for part %d\n", nodes[i], i)
-					}
+					go downloadVideo(ip, nodes[i], name, path, int64(len(download_ips)), int64(i), ctx, cancel, &wait)
 				}
+				wait.Wait()
+				if ctx.Err() != nil {
+					log.Printf("All nodes cancelled downloading for file %s\n", name)
+					return
+				}
+				mergeFiles(path, name, nodes)
+				log.Printf("All downloads finished for file %s\n", path+name)
 				file.Close()
 			}()
 		} else {

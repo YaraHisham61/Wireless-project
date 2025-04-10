@@ -52,7 +52,14 @@ type MasterServer struct {
 	master.UnimplementedMasterServer
 }
 
-
+func notInList(item File, list []File) bool {
+    for _, v := range list {
+        if v == item {
+            return false // item is in the list
+        }
+    }
+    return true // item is not in the list
+}
 func senderReplication(client data.DataClient, f File, receiver_ip string) {
 	a, err := client.ReplicateNotify(context.Background(), &data.ReplicateNotification{
 		FileName:    f.fileName,
@@ -235,7 +242,9 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 		fileName: file_name,
 		filePath: file_path,
 	}
-	data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
+	if notInList(ff,data_nodes_tracker[in.NodeName]){
+		data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
+	}
 	original_file_source[ff] = in.NodeName
 	
 	user_ip := files_tracker[in.NodeName+"/"+file_path+file_name]
@@ -249,18 +258,6 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 		fmt.Printf("UploadFinished -> Error when calling NotifyUploadFinished: %s\n", err)
 		return nil, err
 	}
-	// // The master chooses 2 other nodes to replicate the file transferred
-	// replicate_ports := make([]string, 2)
-	// for i := 0; i < 2; i++ {
-	// 	for {
-	// 		j := rand.Intn(len(node_life_tracker))
-	// 		replicate_node_name := "Node" + strconv.Itoa(j)
-	// 		if replicate_node_name != node_name && check_node_life(node_name) {
-	// 			replicate_ports[i] = node_life_tracker[replicate_node_name].ip
-	// 			break
-	// 		}
-	// 	}
-	// }
 	return &master.ReplicateRequest{
 		// DataNodes: replicate_ports,
 		DataNodes: []string{},
