@@ -79,6 +79,7 @@ func (s *DataServer) ReplicateNotify(ctx context.Context, in *data.ReplicateNoti
 		client_stream, err := client.NodeToNodeReplicate(context.Background())
 		if err != nil {
 			log.Printf("Error when calling NodeToNodeReplicate: %s", err)
+			return nil, err
 		}
 		file, err := os.Open(filepath.Join("./uploads/"+name+"/"+file_path, file_name))
 		if err != nil {
@@ -94,7 +95,8 @@ func (s *DataServer) ReplicateNotify(ctx context.Context, in *data.ReplicateNoti
 			n, err := file.Read(buffer)
 			if err == io.EOF {
 				fmt.Printf("File %s uploaded to data node %s\n", file_path+file_name, ip)
-				err = client_stream.CloseSend()
+				msg, err := client_stream.CloseAndRecv()
+				log.Println("Message = " + msg.Message)
 				if err != nil {
 					log.Printf("Failed to close stream: %v", err)
 				}
@@ -106,6 +108,7 @@ func (s *DataServer) ReplicateNotify(ctx context.Context, in *data.ReplicateNoti
 			err = client_stream.Send(&data.VideoChunk{Data: buffer[:n]})
 			if err != nil {
 				log.Printf("Failed to send video chunk: %v", err)
+				return nil, err
 			}
 			time.Sleep(time.Millisecond * 100) // Optional throttling
 		}

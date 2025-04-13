@@ -78,7 +78,8 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 	for {
 		n, err := f.Read(buf)
 		if err == io.EOF {
-			err = stream.CloseSend()
+			msg,err := stream.CloseAndRecv()
+			log.Println("Message = "+msg.Message)
 			if err != nil {
 				fmt.Printf("Error closing upload stream: %s\n", err)
 				delete(currently_uploading, nodeName+"/"+path+name+".mp4")
@@ -180,6 +181,7 @@ func downloadVideo(ip string, nodeName string, fileName string, filePath string,
 }
 func mergeFiles(filePath string, fileName string, nodes []string) {
 	local_path := "../downloads/" + filePath
+	log.Println("I am here")
 	err := os.MkdirAll(local_path, os.ModePerm)
 	if err != nil {
 		fmt.Printf("Error creating download directory: %s\n", err)
@@ -191,6 +193,8 @@ func mergeFiles(filePath string, fileName string, nodes []string) {
 		return
 	}
 	defer file.Close()
+	log.Println("I am here")
+
 	for _, node := range nodes {
 		fullPath := "../temp/" + node + "/" + filePath + fileName
 		temp_file, err := os.Open(fullPath)
@@ -318,17 +322,6 @@ func main() {
 			}
 			download_ips, nodes := requestVideoDownload(client_master, name, path)
 			log.Println(nodes)
-			local_path := "../downloads/" + path
-			err = os.MkdirAll(local_path, os.ModePerm)
-			if err != nil {
-				fmt.Printf("Error creating download directory: %s\n", err)
-				return
-			}
-			file, err := os.Create(local_path + name)
-			if err != nil {
-				fmt.Printf("Error creating download file: %s\n", err)
-				return
-			}
 			go func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel() // Ensure cancel is called to avoid context leak
@@ -344,7 +337,6 @@ func main() {
 				}
 				mergeFiles(path, name, nodes)
 				log.Printf("All downloads finished for file %s\n", path+name)
-				file.Close()
 			}()
 		} else {
 			fmt.Println("Invalid input")
