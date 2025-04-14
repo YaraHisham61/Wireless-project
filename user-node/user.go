@@ -78,8 +78,8 @@ func uploadVideo(client_master master.MasterClient, name string, path string) {
 	for {
 		n, err := f.Read(buf)
 		if err == io.EOF {
-			msg,err := stream.CloseAndRecv()
-			log.Println("Message = "+msg.Message)
+			_,err := stream.CloseAndRecv()
+			
 			if err != nil {
 				fmt.Printf("Error closing upload stream: %s\n", err)
 				delete(currently_uploading, nodeName+"/"+path+name+".mp4")

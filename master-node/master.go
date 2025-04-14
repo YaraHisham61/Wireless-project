@@ -53,12 +53,12 @@ type MasterServer struct {
 }
 
 func notInList(item File, list []File) bool {
-    for _, v := range list {
-        if v == item {
-            return false // item is in the list
-        }
-    }
-    return true // item is not in the list
+	for _, v := range list {
+		if v == item {
+			return false // item is in the list
+		}
+	}
+	return true // item is not in the list
 }
 func senderReplication(client data.DataClient, f File, receiver_ip string) {
 	a, err := client.ReplicateNotify(context.Background(), &data.ReplicateNotification{
@@ -116,16 +116,18 @@ func check_replication() {
 	for {
 		time.Sleep(10000 * time.Millisecond)
 		fmt.Println("============ Check Replication Started ===============")
-		// for dn, files := range data_nodes_tracker {
-		// 	fmt.Println("Data Node = ", dn)
-		// 	fmt.Print("Files = [")
-		// 	for _, f := range files {
-		// 		fmt.Printf("\nFile Name = %s, File Path = %s", f.fileName, f.filePath)
-		// 	}
-		// 	fmt.Println("]")
-		// }
 		for file, source_machine := range original_file_source {
 			if !check_node_life(source_machine) {
+				for data_node,node_files:=range data_nodes_tracker{
+					if (data_node == source_machine){
+						continue
+					}
+					for _, f := range node_files {
+						if f.fileName == file.fileName && f.filePath == file.filePath {
+							original_file_source[file] = data_node
+						}
+					}
+				}
 				continue
 			}
 			count := 0
@@ -149,15 +151,16 @@ func check_replication() {
 					nodes_without_file = append(nodes_without_file, data_node)
 				}
 			}
-			threshold := 2
-			threshold -= count
 			nodes_count := len(nodes_without_file)
+			threshold := min(3, nodes_count)
+			threshold -= count
 
 			fmt.Printf("For file %s count = %d,threshold = %d, nodes_count = %d\n", file.filePath+file.fileName, count, threshold, nodes_count)
 			x0 := -1
 			x1 := -1
 			source_machine_ip := node_life_tracker[source_machine].ip
-			for threshold != 0 && nodes_count != 0 {
+			fmt.Println("nodes without fille", nodes_without_file)
+			for count < 2 && nodes_count != 0 {
 				i := rand.Intn(nodes_count)
 				for i == x0 || i == x1 {
 					i = rand.Intn(nodes_count)
@@ -175,7 +178,9 @@ func check_replication() {
 					fileName: file.fileName,
 					filePath: file.filePath,
 				})
-				threshold--
+				count++
+				nodes_count--
+				fmt.Println("Yara")
 			}
 
 		}
@@ -242,11 +247,11 @@ func (s *MasterServer) UploadFinished(ctx context.Context, in *master.DataNodeUp
 		fileName: file_name,
 		filePath: file_path,
 	}
-	if notInList(ff,data_nodes_tracker[in.NodeName]){
+	if notInList(ff, data_nodes_tracker[in.NodeName]) {
 		data_nodes_tracker[in.NodeName] = append(data_nodes_tracker[in.NodeName], ff)
 	}
 	original_file_source[ff] = in.NodeName
-	
+
 	user_ip := files_tracker[in.NodeName+"/"+file_path+file_name]
 	delete(files_tracker, in.NodeName+"/"+file_path+file_name)
 	// The master will notify the client with a successful message
