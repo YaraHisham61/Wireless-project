@@ -292,6 +292,7 @@ func main() {
 		fmt.Println("0. Exit")
 		fmt.Scan(&answer)
 		if answer == 0 {
+			os.RemoveAll("../temp/")
 			return
 		} else if answer == 1 {
 			fmt.Println("Enter the path of the video file you want to upload")
@@ -322,9 +323,14 @@ func main() {
 			}
 			download_ips, nodes := requestVideoDownload(client_master, name, path)
 			log.Println(nodes)
+			if len(download_ips)==0{
+				log.Println("There's no file exists with this name = "+ path+name +" on the system")
+				continue
+			}
 			go func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel() // Ensure cancel is called to avoid context leak
+				
 				wait := sync.WaitGroup{}
 				wait.Add(len(download_ips))
 				for i, ip := range download_ips {
